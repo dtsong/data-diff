@@ -1242,6 +1242,7 @@ class ThreadedDatabase(Database):
         try:
             self.thread_local.conn = self.create_connection()
         except Exception as e:
+            logger.error(f"Failed to create database connection: {type(e).__name__}: {e}")
             self._init_error = e
 
     def _query(self, sql_code: str | ThreadLocalInterpreter) -> QueryResult:

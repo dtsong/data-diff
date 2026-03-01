@@ -121,7 +121,7 @@ class PostgresqlDialect(BaseDialect):
         try:
             is_date = coltype.is_date
             is_time = coltype.is_time
-        except:
+        except AttributeError:
             is_date = False
             is_time = False
 

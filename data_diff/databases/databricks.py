@@ -95,7 +95,7 @@ class Dialect(BaseDialect):
         """Databricks timestamp contains no more than 6 digits in precision"""
         try:
             is_date = coltype.is_date
-        except:
+        except AttributeError:
             is_date = False
         if isinstance(coltype, Date) or is_date:
             return f"date_format({value}, 'yyyy-MM-dd')"

@@ -146,7 +146,7 @@ class Dialect(BaseDialect):
 
     def to_comparable(self, value: str, coltype: ColType) -> str:
         """Ensure that the expression is comparable in ``IS DISTINCT FROM``."""
-        if isinstance(coltype, (JSON, Array, Struct)):
+        if isinstance(coltype, JSON | Array | Struct):
             return self.normalize_value_by_type(value, coltype)
         else:
             return super().to_comparable(value, coltype)
@@ -168,7 +168,7 @@ class Dialect(BaseDialect):
         try:
             is_date = coltype.is_date
             is_time = coltype.is_time
-        except:
+        except AttributeError:
             is_date = False
             is_time = False
         if isinstance(coltype, Date) or is_date:

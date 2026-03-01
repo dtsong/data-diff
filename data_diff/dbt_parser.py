@@ -6,9 +6,15 @@ from typing import Any
 
 import attrs
 import yaml
-from dbt.config.renderer import ProfileRenderer
 from packaging.version import parse as parse_version
 from pydantic import BaseModel
+
+try:
+    from dbt.config.renderer import ProfileRenderer
+except ImportError:
+    raise ImportError(
+        "dbt-core is required for dbt integration. Install it with: pip install 'data-diff[dbt]'"
+    ) from None
 
 from data_diff.dbt_config_validators import ManifestJsonConfig, RunResultsJsonConfig
 from data_diff.errors import (
@@ -52,8 +58,10 @@ def try_set_dbt_flags() -> None:
         from dbt.flags import set_flags
 
         set_flags(Namespace(MACRO_DEBUGGING=False))
-    except Exception:
-        pass
+    except ImportError:
+        pass  # dbt.flags.set_flags not available in this dbt version
+    except Exception as e:
+        logger.debug(f"Failed to set dbt flags (non-critical): {e}")
 
 
 RUN_RESULTS_PATH = "target/run_results.json"
