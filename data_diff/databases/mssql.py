@@ -192,6 +192,16 @@ class MsSQL(ThreadedDatabase):
             connection = self._mssql.connect(**self._args)
             return connection
         except self._mssql.Error as error:
+            msg = str(error)
+            if "SSL" in msg or "certificate" in msg.lower():
+                raise ConnectError(
+                    f"TLS certificate validation failed connecting to "
+                    f"{self._args.get('server', 'unknown host')}. "
+                    f"ODBC Driver 18 requires encrypted connections by default. "
+                    f"If using a self-signed certificate, pass "
+                    f"TrustServerCertificate='yes' in your connection URI or TOML config. "
+                    f"Original error: {error}"
+                ) from error
             raise ConnectError(*error.args) from error
 
     def select_table_schema(self, path: DbPath) -> str:

@@ -34,7 +34,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Build the stack
-        run: docker compose up -d mysql postgres presto trino clickhouse
+        run: docker compose up -d --wait mysql postgres presto trino clickhouse
 
       - name: Run tests
         env:

@@ -1,5 +1,8 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from data_diff.databases.base import ConnectError
 from data_diff.databases.mssql import MsSQL
 
 
@@ -35,3 +38,27 @@ class TestMsSQLConnectionArgs:
         db = _make_mssql()
         for v in db._args.values():
             assert v is not None
+
+
+class TestMsSQLConnectionErrors:
+    def test_ssl_error_provides_actionable_message(self):
+        db = _make_mssql()
+        mock_mssql = MagicMock()
+        mock_mssql.Error = type("Error", (Exception,), {})
+        mock_mssql.connect.side_effect = mock_mssql.Error(
+            "[SSL Provider] The certificate chain was issued by an untrusted authority"
+        )
+
+        with patch("data_diff.databases.mssql.import_mssql", return_value=mock_mssql):
+            with pytest.raises(ConnectError, match="TrustServerCertificate"):
+                db.create_connection()
+
+    def test_non_ssl_error_passes_through(self):
+        db = _make_mssql()
+        mock_mssql = MagicMock()
+        mock_mssql.Error = type("Error", (Exception,), {})
+        mock_mssql.connect.side_effect = mock_mssql.Error("Login failed for user")
+
+        with patch("data_diff.databases.mssql.import_mssql", return_value=mock_mssql):
+            with pytest.raises(ConnectError, match="Login failed"):
+                db.create_connection()
