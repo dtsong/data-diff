@@ -1,6 +1,6 @@
 # data-diff -- Efficiently diff rows across databases
 
-[![Community Maintained](https://img.shields.io/badge/maintained-community-blue)](https://github.com/datafold/data-diff)
+[![Community Maintained](https://img.shields.io/badge/maintained-community-blue)](https://github.com/dtsong/data-diff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/data-diff)](https://pypi.org/project/data-diff/)
 
@@ -89,8 +89,8 @@ See the [full documentation](https://data-diff.readthedocs.io/) for configuratio
 
 ## Contributors
 
-<a href="https://github.com/datafold/data-diff/graphs/contributors">
-  <img src="https://contributors-img.web.app/image?repo=datafold/data-diff" />
+<a href="https://github.com/dtsong/data-diff/graphs/contributors">
+  <img src="https://contributors-img.web.app/image?repo=dtsong/data-diff" />
 </a>
 
 ## License
