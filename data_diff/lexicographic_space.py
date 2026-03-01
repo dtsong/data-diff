@@ -19,14 +19,12 @@ keys are not evenly distributed.
 
 from random import randint, randrange
 
-from typing import Tuple
-
 import attrs
 
 from data_diff.utils import safezip
 
-Vector = Tuple[int]
-Interval = Tuple[int]
+Vector = tuple[int]
+Interval = tuple[int]
 
 
 class Overflow(ValueError):
@@ -110,12 +108,12 @@ class LexicographicSpace:
 
     def range(self, min_value: Vector, max_value: Vector, count: int):
         if min_value not in self or max_value not in self:
-            raise ValueError(f"min_value or max_value is outside the lexicographic space bounds.")
+            raise ValueError("min_value or max_value is outside the lexicographic space bounds.")
         count -= 1
         size = self.sub(max_value, min_value)
         interval = self.divide(size, count)
         n = min_value
-        for i in range(count):
+        for _i in range(count):
             yield n
             n = self.add(n, interval)
         yield n
@@ -176,7 +174,7 @@ def test_lex_space():
     zero = (0, 0, 0, 0)
     one = (0, 0, 0, 1)
     bin_nums = [zero]
-    for i in range(15):
+    for _i in range(15):
         last = bin_nums[-1]
         bin_nums.append(binspace.add(last, one))
     five = bin_nums[5]

@@ -1,33 +1,33 @@
-from typing import Any, ClassVar, Dict, List, Optional, Type
+from typing import Any, ClassVar
 
 import attrs
 
-from data_diff.schema import RawColumnInfo
-from data_diff.utils import match_regexps
 from data_diff.abcs.database_types import (
+    ColType,
+    ColType_UUID,
+    DbPath,
+    DbTime,
     Decimal,
     Float,
-    Text,
-    DbPath,
+    FractionalType,
     TemporalType,
-    ColType,
-    DbTime,
-    ColType_UUID,
+    Text,
     Timestamp,
     TimestampTZ,
-    FractionalType,
 )
 from data_diff.databases.base import (
+    CHECKSUM_HEXDIGITS,
+    CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
+    TIMESTAMP_PRECISION_POS,
     BaseDialect,
-    ThreadedDatabase,
-    import_helper,
     ConnectError,
     QueryError,
-    CHECKSUM_OFFSET,
-    CHECKSUM_HEXDIGITS,
-    MD5_HEXDIGITS,
+    ThreadedDatabase,
+    import_helper,
 )
-from data_diff.databases.base import TIMESTAMP_PRECISION_POS
+from data_diff.schema import RawColumnInfo
+from data_diff.utils import match_regexps
 
 SESSION_TIME_ZONE = None  # Changed by the tests
 
@@ -46,7 +46,7 @@ class Dialect(
     name = "Oracle"
     SUPPORTS_PRIMARY_KEY: ClassVar[bool] = True
     SUPPORTS_INDEXES = True
-    TYPE_CLASSES: Dict[str, type] = {
+    TYPE_CLASSES: dict[str, type] = {
         "NUMBER": Decimal,
         "FLOAT": Float,
         # Text
@@ -68,16 +68,16 @@ class Dialect(
     def limit_select(
         self,
         select_query: str,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
-        has_order_by: Optional[bool] = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        has_order_by: bool | None = None,
     ) -> str:
         if offset:
             raise NotImplementedError("No support for OFFSET in query")
 
         return f"SELECT * FROM ({select_query}) FETCH NEXT {limit} ROWS ONLY"
 
-    def concat(self, items: List[str]) -> str:
+    def concat(self, items: list[str]) -> str:
         joined_exprs = " || ".join(items)
         return f"({joined_exprs})"
 
@@ -128,7 +128,7 @@ class Dialect(
     def md5_as_int(self, s: str) -> str:
         # standard_hash is faster than DBMS_CRYPTO.Hash
         # TODO: Find a way to use UTL_RAW.CAST_TO_BINARY_INTEGER ?
-        return f"to_number(substr(standard_hash({s}, 'MD5'), {1+MD5_HEXDIGITS-CHECKSUM_HEXDIGITS}), 'xxxxxxxxxxxxxxx') - {CHECKSUM_OFFSET}"
+        return f"to_number(substr(standard_hash({s}, 'MD5'), {1 + MD5_HEXDIGITS - CHECKSUM_HEXDIGITS}), 'xxxxxxxxxxxxxxx') - {CHECKSUM_OFFSET}"
 
     def md5_as_hex(self, s: str) -> str:
         return f"standard_hash({s}, 'MD5')"
@@ -145,7 +145,7 @@ class Dialect(
             truncated = f"to_char({value}, 'YYYY-MM-DD HH24:MI:SS.FF{coltype.precision}')"
         else:
             truncated = f"to_char({value}, 'YYYY-MM-DD HH24:MI:SS.')"
-        return f"RPAD({truncated}, {TIMESTAMP_PRECISION_POS+6}, '0')"
+        return f"RPAD({truncated}, {TIMESTAMP_PRECISION_POS + 6}, '0')"
 
     def normalize_number(self, value: str, coltype: FractionalType) -> str:
         # FM999.9990
@@ -157,11 +157,11 @@ class Dialect(
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class Oracle(ThreadedDatabase):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "oracle://<user>:<password>@<host>/<database>"
     CONNECT_URI_PARAMS = ["database?"]
 
-    kwargs: Dict[str, Any]
+    kwargs: dict[str, Any]
     _oracle: Any
 
     def __init__(self, *, host, database, thread_count, **kw) -> None:

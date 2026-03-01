@@ -1,7 +1,6 @@
-from data_diff.utils import CaseAwareMapping, CaseSensitiveDict
 from data_diff.queries.ast_classes import *
 from data_diff.queries.base import args_as_tuple
-
+from data_diff.utils import CaseAwareMapping, CaseSensitiveDict
 
 this = This()
 
@@ -50,12 +49,12 @@ def outerjoin(*tables: ITable) -> Join:
     return Join(tables, "FULL OUTER")
 
 
-def cte(expr: Expr, *, name: Optional[str] = None, params: Sequence[str] = None) -> Cte:
+def cte(expr: Expr, *, name: str | None = None, params: Sequence[str] = None) -> Cte:
     """Define a CTE"""
     return Cte(expr, name, params)
 
 
-def table(*path: str, schema: Union[dict, CaseAwareMapping] = None) -> TablePath:
+def table(*path: str, schema: dict | CaseAwareMapping = None) -> TablePath:
     """Defines a table with a path (dotted name), and optionally a schema.
 
     Parameters:
@@ -73,7 +72,7 @@ def table(*path: str, schema: Union[dict, CaseAwareMapping] = None) -> TablePath
     return TablePath(path, schema)
 
 
-def or_(*exprs: Expr) -> Union[BinBoolOp, Expr]:
+def or_(*exprs: Expr) -> BinBoolOp | Expr:
     """Apply OR between a sequence of boolean expressions"""
     exprs = args_as_tuple(exprs)
     if len(exprs) == 1:
@@ -81,7 +80,7 @@ def or_(*exprs: Expr) -> Union[BinBoolOp, Expr]:
     return BinBoolOp("OR", exprs)
 
 
-def and_(*exprs: Expr) -> Union[BinBoolOp, Expr]:
+def and_(*exprs: Expr) -> BinBoolOp | Expr:
     """Apply AND between a sequence of boolean expressions"""
     exprs = args_as_tuple(exprs)
     if len(exprs) == 1:
@@ -114,7 +113,7 @@ def exists(expr: Expr) -> Func:
     return Func("exists", [expr])
 
 
-def if_(cond: Expr, then: Expr, else_: Optional[Expr] = None) -> CaseWhen:
+def if_(cond: Expr, then: Expr, else_: Expr | None = None) -> CaseWhen:
     """Conditional expression, shortcut to when-then-else.
 
     Example:
@@ -167,7 +166,7 @@ def current_timestamp() -> CurrentTimestamp:
     return CurrentTimestamp()
 
 
-def code(code: str, **kw: Dict[str, Expr]) -> Code:
+def code(code: str, **kw: dict[str, Expr]) -> Code:
     """Inline raw SQL code.
 
     It allows users to use features and syntax that Sqeleton doesn't yet support.

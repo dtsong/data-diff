@@ -1,22 +1,22 @@
 import unittest
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable, List, Tuple
 
 import attrs
 import pytz
 
-from data_diff import connect, Database
+from data_diff import Database, connect
 from data_diff import databases as dbs
 from data_diff.abcs.database_types import TimestampTZ
-from data_diff.queries.api import table, current_timestamp
+from data_diff.queries.api import current_timestamp, table
 from data_diff.queries.extras import NormalizeAsString
 from data_diff.schema import create_schema
 from tests.common import (
     TEST_MYSQL_CONN_STRING,
-    test_each_database_in_list,
     get_conn,
-    str_to_checksum,
     random_table_suffix,
+    str_to_checksum,
+    test_each_database_in_list,
 )
 
 TEST_DATABASES = {
@@ -103,7 +103,7 @@ class TestQueries(unittest.TestCase):
             tbl = table(name, schema=table_object.schema)
 
             results = db_connection.query(
-                tbl.select(NormalizeAsString(tbl[c]) for c in ["created_at", "updated_at"]), List[Tuple]
+                tbl.select(NormalizeAsString(tbl[c]) for c in ["created_at", "updated_at"]), list[tuple]
             )
 
             created_at = results[0][1]

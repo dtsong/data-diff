@@ -1,7 +1,8 @@
-import unittest
-from data_diff.databases import duckdb as duckdb_differ
 import os
+import unittest
 import uuid
+
+from data_diff.databases import duckdb as duckdb_differ
 
 test_duckdb_filepath = str(uuid.uuid4()) + ".duckdb"
 

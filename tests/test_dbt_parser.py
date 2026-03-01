@@ -1,7 +1,15 @@
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
+from data_diff.dbt import (
+    DbtParser,
+)
+from data_diff.dbt_parser import (
+    PROJECT_FILE,
+    RUN_RESULTS_PATH,
+    TDatadiffConfig,
+)
 from data_diff.errors import (
     DataDiffDbtBigQueryUnsupportedMethodError,
     DataDiffDbtConnectionNotImplementedError,
@@ -11,15 +19,6 @@ from data_diff.errors import (
     DataDiffDbtRedshiftPasswordOnlyError,
     DataDiffDbtRunResultsVersionError,
     DataDiffDbtSnowflakeSetConnectionError,
-)
-
-from data_diff.dbt import (
-    DbtParser,
-)
-from data_diff.dbt_parser import (
-    RUN_RESULTS_PATH,
-    PROJECT_FILE,
-    TDatadiffConfig,
 )
 
 

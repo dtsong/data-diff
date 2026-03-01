@@ -1,59 +1,56 @@
-from contextlib import nullcontext
 import json
-import os
-from typing import List, Optional, Dict, Tuple, Union
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import nullcontext
+
 import pydantic
 import rich
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from data_diff import Algorithm, connect_to_table, diff_tables
+from data_diff.dbt_parser import DbtParser, TDatadiffConfig
+from data_diff.diff_tables import DiffResultWrapper
 from data_diff.errors import (
     DataDiffCustomSchemaNoConfigError,
     DataDiffDbtProjectVarsNotFoundError,
 )
-
-from data_diff import connect_to_table, diff_tables, Algorithm
-from data_diff.dbt_parser import DbtParser, TDatadiffConfig
-from data_diff.diff_tables import DiffResultWrapper
 from data_diff.format import jsonify, jsonify_error
 from data_diff.utils import (
-    dbt_diff_string_template,
-    getLogger,
+    LogStatusHandler,
     columns_added_template,
     columns_removed_template,
-    no_differences_template,
     columns_type_changed_template,
+    getLogger,
+    no_differences_template,
     print_version_info,
-    LogStatusHandler,
 )
 
 logger = getLogger(__name__)
 
 
 class TDiffVars(pydantic.BaseModel):
-    dev_path: List[str]
-    prod_path: List[str]
-    primary_keys: List[str]
-    connection: Dict[str, Optional[str]]
-    threads: Optional[int] = None
-    where_filter: Optional[str] = None
-    include_columns: List[str]
-    exclude_columns: List[str]
-    dbt_model: Optional[str] = None
+    dev_path: list[str]
+    prod_path: list[str]
+    primary_keys: list[str]
+    connection: dict[str, str | None]
+    threads: int | None = None
+    where_filter: str | None = None
+    include_columns: list[str]
+    exclude_columns: list[str]
+    dbt_model: str | None = None
     stats_flag: bool = False
 
 
 def dbt_diff(
-    profiles_dir_override: Optional[str] = None,
-    project_dir_override: Optional[str] = None,
-    dbt_selection: Optional[str] = None,
+    profiles_dir_override: str | None = None,
+    project_dir_override: str | None = None,
+    dbt_selection: str | None = None,
     json_output: bool = False,
-    state: Optional[str] = None,
-    log_status_handler: Optional[LogStatusHandler] = None,
-    where_flag: Optional[str] = None,
+    state: str | None = None,
+    log_status_handler: LogStatusHandler | None = None,
+    where_flag: str | None = None,
     stats_flag: bool = False,
-    columns_flag: Optional[Tuple[str]] = None,
-    production_database_flag: Optional[str] = None,
-    production_schema_flag: Optional[str] = None,
+    columns_flag: tuple[str] | None = None,
+    production_database_flag: str | None = None,
+    production_schema_flag: str | None = None,
 ) -> None:
     print_version_info()
     dbt_parser = DbtParser(profiles_dir_override, project_dir_override, state)
@@ -70,9 +67,10 @@ def dbt_diff(
 
     futures = {}
 
-    with log_status_handler.status if log_status_handler else nullcontext(), ThreadPoolExecutor(
-        max_workers=dbt_parser.threads
-    ) as executor:
+    with (
+        log_status_handler.status if log_status_handler else nullcontext(),
+        ThreadPoolExecutor(max_workers=dbt_parser.threads) as executor,
+    ):
         for model in models:
             if log_status_handler:
                 log_status_handler.set_prefix(f"Diffing {model.alias} \n")
@@ -132,11 +130,11 @@ def _get_diff_vars(
     dbt_parser: "DbtParser",
     config: TDatadiffConfig,
     model,
-    where_flag: Optional[str] = None,
+    where_flag: str | None = None,
     stats_flag: bool = False,
-    columns_flag: Optional[Tuple[str]] = None,
-    production_database_flag: Optional[str] = None,
-    production_schema_flag: Optional[str] = None,
+    columns_flag: tuple[str] | None = None,
+    production_database_flag: str | None = None,
+    production_schema_flag: str | None = None,
 ) -> TDiffVars:
     cli_columns = list(columns_flag) if columns_flag else []
     dev_database = model.database
@@ -179,7 +177,7 @@ def _get_diff_vars(
     )
 
 
-def _get_prod_path_from_config(config, model, dev_database, dev_schema) -> Tuple[str, str]:
+def _get_prod_path_from_config(config, model, dev_database, dev_schema) -> tuple[str, str]:
     # "custom" dbt config database
     if model.config.database:
         prod_database = model.config.database
@@ -208,7 +206,7 @@ def _get_prod_path_from_config(config, model, dev_database, dev_schema) -> Tuple
     return prod_database, prod_schema
 
 
-def _get_prod_path_from_manifest(model, prod_manifest) -> Union[Tuple[str, str, str], Tuple[None, None, None]]:
+def _get_prod_path_from_manifest(model, prod_manifest) -> tuple[str, str, str] | tuple[None, None, None]:
     prod_database = None
     prod_schema = None
     prod_alias = None
@@ -221,7 +219,7 @@ def _get_prod_path_from_manifest(model, prod_manifest) -> Union[Tuple[str, str, 
 
 
 def _local_diff(
-    diff_vars: TDiffVars, json_output: bool = False, log_status_handler: Optional[LogStatusHandler] = None
+    diff_vars: TDiffVars, json_output: bool = False, log_status_handler: LogStatusHandler | None = None
 ) -> None:
     if log_status_handler:
         log_status_handler.diff_started(diff_vars.dev_path[-1])
@@ -256,7 +254,7 @@ def _local_diff(
     diff_output_str += f"Primary Keys: {diff_vars.primary_keys} \n"
 
     if diff_vars.where_filter:
-        diff_output_str += f"Where Filter: '{str(diff_vars.where_filter)}' \n"
+        diff_output_str += f"Where Filter: '{diff_vars.where_filter!s}' \n"
 
     if diff_vars.include_columns:
         diff_output_str += f"Included Columns: {diff_vars.include_columns} \n"

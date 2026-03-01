@@ -1,40 +1,41 @@
 import re
-from typing import Any, ClassVar, List, Union, Type
+from typing import Any, ClassVar
 
 import attrs
 
 from data_diff.abcs.database_types import (
-    ColType,
-    Array,
     JSON,
-    Struct,
-    Timestamp,
+    Array,
+    Boolean,
+    ColType,
+    Date,
     Datetime,
-    Integer,
+    DbPath,
     Decimal,
     Float,
-    Text,
-    DbPath,
     FractionalType,
+    Integer,
+    Struct,
     TemporalType,
-    Boolean,
-    UnknownColType,
+    Text,
     Time,
-    Date,
+    Timestamp,
+    UnknownColType,
 )
 from data_diff.databases.base import (
+    CHECKSUM_HEXDIGITS,
+    CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
+    TIMESTAMP_PRECISION_POS,
     BaseDialect,
+    ConnectError,
     Database,
+    QueryResult,
+    ThreadLocalInterpreter,
+    apply_query,
     import_helper,
     parse_table_name,
-    ConnectError,
-    apply_query,
-    QueryResult,
-    CHECKSUM_OFFSET,
-    CHECKSUM_HEXDIGITS,
-    MD5_HEXDIGITS,
 )
-from data_diff.databases.base import TIMESTAMP_PRECISION_POS, ThreadLocalInterpreter
 from data_diff.schema import RawColumnInfo
 
 
@@ -158,7 +159,7 @@ class Dialect(BaseDialect):
         return tuple(i for i in path if i is not None)
 
     def md5_as_int(self, s: str) -> str:
-        return f"cast(cast( ('0x' || substr(TO_HEX(md5({s})), {1+MD5_HEXDIGITS-CHECKSUM_HEXDIGITS})) as int64) as numeric) - {CHECKSUM_OFFSET}"
+        return f"cast(cast( ('0x' || substr(TO_HEX(md5({s})), {1 + MD5_HEXDIGITS - CHECKSUM_HEXDIGITS})) as int64) as numeric) - {CHECKSUM_OFFSET}"
 
     def md5_as_hex(self, s: str) -> str:
         return f"md5({s})"
@@ -189,9 +190,7 @@ class Dialect(BaseDialect):
             return f"FORMAT_TIMESTAMP('%F %H:%M:%E6S', {value})"
 
         timestamp6 = f"FORMAT_TIMESTAMP('%F %H:%M:%E6S', {value})"
-        return (
-            f"RPAD(LEFT({timestamp6}, {TIMESTAMP_PRECISION_POS+coltype.precision}), {TIMESTAMP_PRECISION_POS+6}, '0')"
-        )
+        return f"RPAD(LEFT({timestamp6}, {TIMESTAMP_PRECISION_POS + coltype.precision}), {TIMESTAMP_PRECISION_POS + 6}, '0')"
 
     def normalize_number(self, value: str, coltype: FractionalType) -> str:
         return f"format('%.{coltype.precision}f', {value})"
@@ -223,7 +222,7 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class BigQuery(Database):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "bigquery://<project>/<dataset>"
     CONNECT_URI_PARAMS = ["dataset"]
 
@@ -278,7 +277,7 @@ class BigQuery(Database):
             rows = [tuple(self._normalize_returned_value(v) for v in row.values()) for row in rows]
         return QueryResult(rows, columns)
 
-    def _query(self, sql_code: Union[str, ThreadLocalInterpreter]) -> QueryResult:
+    def _query(self, sql_code: str | ThreadLocalInterpreter) -> QueryResult:
         return apply_query(self._query_atom, sql_code)
 
     def close(self):
@@ -293,7 +292,7 @@ class BigQuery(Database):
             f"WHERE table_name = '{name}' AND table_schema = '{schema}'"
         )
 
-    def query_table_unique_columns(self, path: DbPath) -> List[str]:
+    def query_table_unique_columns(self, path: DbPath) -> list[str]:
         return []
 
     def _normalize_table_path(self, path: DbPath) -> DbPath:

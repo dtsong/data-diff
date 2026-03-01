@@ -1,22 +1,21 @@
 import hashlib
+import logging
 import os
+import random
 import re
 import string
-import random
-from typing import Callable
-import unittest
-import logging
 import subprocess
+import unittest
+from collections.abc import Callable
 
 from parameterized import parameterized_class
 
-from data_diff.queries.api import table
-from data_diff.databases.base import Database
-
-from data_diff import databases as db
 from data_diff import connect
-from data_diff.table_segment import TableSegment
+from data_diff import databases as db
+from data_diff.databases.base import Database
+from data_diff.queries.api import table
 from data_diff.query_utils import drop_table
+from data_diff.table_segment import TableSegment
 
 # We write 'or None' because Github sometimes creates empty env vars for secrets
 TEST_MYSQL_CONN_STRING: str = os.environ.get("DATADIFF_MYSQL_URI") or "mysql://mysql:Password1@localhost/mysql"

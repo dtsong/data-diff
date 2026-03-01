@@ -1,17 +1,16 @@
+import json
 from argparse import Namespace
 from collections import defaultdict
-import json
 from pathlib import Path
-from typing import Any, List, Dict, Tuple, Set, Optional
+from typing import Any
 
 import attrs
 import yaml
+from dbt.config.renderer import ProfileRenderer
+from packaging.version import parse as parse_version
 from pydantic import BaseModel
 
-from packaging.version import parse as parse_version
-from dbt.config.renderer import ProfileRenderer
 from data_diff.dbt_config_validators import ManifestJsonConfig, RunResultsJsonConfig
-
 from data_diff.errors import (
     DataDiffDbtBigQueryUnsupportedMethodError,
     DataDiffDbtConnectionNotImplementedError,
@@ -25,9 +24,7 @@ from data_diff.errors import (
     DataDiffDbtSnowflakeSetConnectionError,
     DataDiffSimpleSelectNotFound,
 )
-
-from data_diff.utils import getLogger, get_from_dict_with_raise
-
+from data_diff.utils import get_from_dict_with_raise, getLogger
 
 logger = getLogger(__name__)
 
@@ -84,39 +81,39 @@ def legacy_profiles_dir() -> Path:
 
 
 class TDatadiffModelConfig(BaseModel):
-    where_filter: Optional[str] = None
-    include_columns: List[str] = []
-    exclude_columns: List[str] = []
+    where_filter: str | None = None
+    include_columns: list[str] = []
+    exclude_columns: list[str] = []
 
 
 class TDatadiffConfig(BaseModel):
-    prod_database: Optional[str] = None
-    prod_schema: Optional[str] = None
-    prod_custom_schema: Optional[str] = None
-    datasource_id: Optional[int] = None
+    prod_database: str | None = None
+    prod_schema: str | None = None
+    prod_custom_schema: str | None = None
+    datasource_id: int | None = None
 
 
 @attrs.define(frozen=False, init=False)
 class DbtParser:
-    dbt_runner: Optional[Any]  # dbt.cli.main.dbtRunner if installed
+    dbt_runner: Any | None  # dbt.cli.main.dbtRunner if installed
     project_dir: Path
-    connection: Dict[str, Any]
-    project_dict: Dict[str, Any]
+    connection: dict[str, Any]
+    project_dict: dict[str, Any]
     dev_manifest_obj: ManifestJsonConfig
-    prod_manifest_obj: Optional[ManifestJsonConfig]
+    prod_manifest_obj: ManifestJsonConfig | None
     dbt_user_id: str
     dbt_version: str
     dbt_project_id: str
     requires_upper: bool
-    threads: Optional[int]
-    unique_columns: Dict[str, Set[str]]
+    threads: int | None
+    unique_columns: dict[str, set[str]]
     profiles_dir: Path
 
     def __init__(
         self,
-        profiles_dir_override: Optional[str] = None,
-        project_dir_override: Optional[str] = None,
-        state: Optional[str] = None,
+        profiles_dir_override: str | None = None,
+        project_dir_override: str | None = None,
+        state: str | None = None,
     ) -> None:
         super().__init__()
 
@@ -174,7 +171,7 @@ class DbtParser:
             where_filter=where_filter, include_columns=include_columns, exclude_columns=exclude_columns
         )
 
-    def get_models(self, dbt_selection: Optional[str] = None):
+    def get_models(self, dbt_selection: str | None = None):
         dbt_version = parse_version(self.dbt_version)
         if dbt_selection:
             if (dbt_version.major, dbt_version.minor) >= (1, 5):
@@ -194,7 +191,7 @@ class DbtParser:
         else:
             return self.get_run_results_models()
 
-    def get_dbt_selection_models(self, dbt_selection: str) -> List[str]:
+    def get_dbt_selection_models(self, dbt_selection: str) -> list[str]:
         # log level and format settings needed to prevent dbt from printing to stdout
         # ls command is used to get the list of model unique_ids
         results = self.dbt_runner.invoke(
@@ -248,7 +245,7 @@ class DbtParser:
 
         return [model]
 
-    def get_run_results_models(self) -> List[ManifestJsonConfig.Nodes]:
+    def get_run_results_models(self) -> list[ManifestJsonConfig.Nodes]:
         with open(self.project_dir / RUN_RESULTS_PATH) as run_results:
             logger.info(f"Parsing file {RUN_RESULTS_PATH}")
             run_results_dict = json.load(run_results)
@@ -288,7 +285,7 @@ class DbtParser:
             project_dict = yaml.safe_load(project)
         return project_dict
 
-    def get_connection_creds(self) -> Tuple[Dict[str, str], str]:
+    def get_connection_creds(self) -> tuple[dict[str, str], str]:
         profiles_path = self.profiles_dir / PROFILES_FILE
         with open(profiles_path) as profiles:
             logger.info(f"Parsing file {profiles_path}")
@@ -431,7 +428,7 @@ class DbtParser:
 
         self.connection = conn_info
 
-    def get_pk_from_model(self, node, unique_columns: dict, pk_tag: str) -> List[str]:
+    def get_pk_from_model(self, node, unique_columns: dict, pk_tag: str) -> list[str]:
         try:
             # Get a set of all the column names
             column_names = {name for name, params in node.columns.items()}
@@ -456,7 +453,7 @@ class DbtParser:
             if node.unique_id in unique_columns:
                 from_uniq = unique_columns.get(node.unique_id)
                 if from_uniq is not None:
-                    logger.debug(f"Found PKs via Uniqueness tests [{node.name}]: {str(from_uniq)}")
+                    logger.debug(f"Found PKs via Uniqueness tests [{node.name}]: {from_uniq!s}")
                     return list(from_uniq)
 
         except (KeyError, IndexError, TypeError) as e:
@@ -465,7 +462,7 @@ class DbtParser:
         logger.debug("Found no PKs")
         return []
 
-    def get_unique_columns(self) -> Dict[str, Set[str]]:
+    def get_unique_columns(self) -> dict[str, set[str]]:
         manifest = self.dev_manifest_obj
         cols_by_uid = defaultdict(set)
         for node in manifest.nodes.values():
@@ -503,7 +500,7 @@ class DbtParser:
 
         return cols_by_uid
 
-    def _parse_concat_pk_definition(self, definition: str) -> List[str]:
+    def _parse_concat_pk_definition(self, definition: str) -> list[str]:
         definition = definition.strip()
         if definition.lower().startswith("concat(") and definition.endswith(")"):
             definition = definition[7:-1]  # Removes concat( and )

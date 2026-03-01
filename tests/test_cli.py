@@ -4,8 +4,7 @@ import sys
 from datetime import datetime, timedelta
 
 from data_diff.queries.api import commit, current_timestamp
-
-from tests.common import DiffTestCase, CONN_STRINGS
+from tests.common import CONN_STRINGS, DiffTestCase
 from tests.test_diff_tables import test_each_database
 
 

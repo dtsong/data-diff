@@ -1,7 +1,7 @@
-import re
 import os
+import re
 import sys
-from typing import Any, Dict
+from typing import Any
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -26,7 +26,7 @@ def is_uri(s: str) -> bool:
     return "://" in s
 
 
-def _apply_config(config: Dict[str, Any], run_name: str, kw: Dict[str, Any]):
+def _apply_config(config: dict[str, Any], run_name: str, kw: dict[str, Any]):
     _resolve_env(config)
 
     # Load config
@@ -61,10 +61,10 @@ def _apply_config(config: Dict[str, Any], run_name: str, kw: Dict[str, Any]):
     for index in "12":
         try:
             args = run_args.pop(index)
-        except KeyError:
+        except KeyError as e:
             raise ConfigParseError(
                 f"Could not find source #{index}: Expecting a key of '{index}' containing '.database' and '.table'."
-            )
+            ) from e
         for attr in ("database", "table"):
             if attr not in args:
                 raise ConfigParseError(f"Running 'run.{run_name}': Connection #{index} is missing attribute '{attr}'.")
@@ -108,7 +108,7 @@ def _apply_config(config: Dict[str, Any], run_name: str, kw: Dict[str, Any]):
 _ENV_VAR_PATTERN = r"\$\{([A-Za-z0-9_]+)\}"
 
 
-def _resolve_env(config: Dict[str, Any]) -> None:
+def _resolve_env(config: dict[str, Any]) -> None:
     """
     Resolve environment variables referenced as ${ENV_VAR_NAME}.
     Missing environment variables are replaced with an empty string.
@@ -127,10 +127,10 @@ def _replace_match(match: re.Match) -> str:
     return os.environ.get(referenced_var, "")
 
 
-def apply_config_from_file(path: str, run_name: str, kw: Dict[str, Any]):
+def apply_config_from_file(path: str, run_name: str, kw: dict[str, Any]):
     with open(path, "rb") as f:
         return _apply_config(tomllib.load(f), run_name, kw)
 
 
-def apply_config_from_string(toml_config: str, run_name: str, kw: Dict[str, Any]):
+def apply_config_from_string(toml_config: str, run_name: str, kw: dict[str, Any]):
     return _apply_config(tomllib.loads(toml_config), run_name, kw)

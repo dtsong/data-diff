@@ -1,27 +1,28 @@
-import math
-from typing import Any, ClassVar, Dict, Sequence, Type
 import logging
+import math
+from collections.abc import Sequence
+from typing import Any, ClassVar
 
 import attrs
 
 from data_diff.abcs.database_types import (
-    Date,
-    Integer,
-    Float,
-    Decimal,
-    Timestamp,
-    Text,
-    TemporalType,
-    NumericType,
-    DbPath,
-    ColType,
-    UnknownColType,
     Boolean,
+    ColType,
+    Date,
+    DbPath,
+    Decimal,
+    Float,
+    Integer,
+    NumericType,
+    TemporalType,
+    Text,
+    Timestamp,
+    UnknownColType,
 )
 from data_diff.databases.base import (
-    MD5_HEXDIGITS,
     CHECKSUM_HEXDIGITS,
     CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
     BaseDialect,
     ThreadedDatabase,
     import_helper,
@@ -85,7 +86,7 @@ class Dialect(BaseDialect):
         return tuple(i for i in path if i is not None)
 
     def md5_as_int(self, s: str) -> str:
-        return f"cast(conv(substr(md5({s}), {1+MD5_HEXDIGITS-CHECKSUM_HEXDIGITS}), 16, 10) as decimal(38, 0)) - {CHECKSUM_OFFSET}"
+        return f"cast(conv(substr(md5({s}), {1 + MD5_HEXDIGITS - CHECKSUM_HEXDIGITS}), 16, 10) as decimal(38, 0)) - {CHECKSUM_OFFSET}"
 
     def md5_as_hex(self, s: str) -> str:
         return f"md5({s})"
@@ -118,12 +119,12 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class Databricks(ThreadedDatabase):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "databricks://:<access_token>@<server_hostname>/<http_path>"
     CONNECT_URI_PARAMS = ["catalog", "schema"]
 
     catalog: str
-    _args: Dict[str, Any]
+    _args: dict[str, Any]
 
     def __init__(self, *, thread_count, **kw) -> None:
         super().__init__(thread_count=thread_count)
@@ -146,7 +147,7 @@ class Databricks(ThreadedDatabase):
         except databricks.sql.exc.Error as e:
             raise ConnectionError(*e.args) from e
 
-    def query_table_schema(self, path: DbPath) -> Dict[str, RawColumnInfo]:
+    def query_table_schema(self, path: DbPath) -> dict[str, RawColumnInfo]:
         # Databricks has INFORMATION_SCHEMA only for Databricks Runtime, not for Databricks SQL.
         # https://docs.databricks.com/spark/latest/spark-sql/language-manual/information-schema/columns.html
         # So, to obtain information about schema, we should use another approach.
@@ -190,7 +191,7 @@ class Databricks(ThreadedDatabase):
     #     )
 
     def _process_table_schema(
-        self, path: DbPath, raw_schema: Dict[str, RawColumnInfo], filter_columns: Sequence[str], where: str = None
+        self, path: DbPath, raw_schema: dict[str, RawColumnInfo], filter_columns: Sequence[str], where: str = None
     ):
         accept = {i.lower() for i in filter_columns}
         col_infos = [row for name, row in raw_schema.items() if name.lower() in accept]
@@ -230,7 +231,7 @@ class Databricks(ThreadedDatabase):
 
             resulted_rows.append(info)
 
-        col_dict: Dict[str, ColType] = {info.column_name: self.dialect.parse_type(path, info) for info in resulted_rows}
+        col_dict: dict[str, ColType] = {info.column_name: self.dialect.parse_type(path, info) for info in resulted_rows}
 
         self._refine_coltypes(path, col_dict, where)
         return col_dict

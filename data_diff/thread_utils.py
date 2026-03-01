@@ -1,11 +1,11 @@
 import itertools
-from queue import PriorityQueue
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures.thread import _WorkItem
+from queue import PriorityQueue
 from time import sleep
-from typing import Any, Callable, Iterator, Optional
+from typing import Any
 
 import attrs
 
@@ -19,11 +19,11 @@ class AutoPriorityQueue(PriorityQueue):
 
     _counter = itertools.count().__next__
 
-    def put(self, item: Optional[_WorkItem], block=True, timeout=None) -> None:
+    def put(self, item: _WorkItem | None, block=True, timeout=None) -> None:
         priority = item.kwargs.pop("priority") if item is not None else 0
         super().put((-priority, self._counter(), item), block, timeout)
 
-    def get(self, block=True, timeout=None) -> Optional[_WorkItem]:
+    def get(self, block=True, timeout=None) -> _WorkItem | None:
         _p, _c, work_item = super().get(block, timeout)
         return work_item
 
@@ -49,16 +49,11 @@ class ThreadedYielder(Iterable):
 
     _pool: ThreadPoolExecutor
     _futures: deque
-    _yield: deque
-    _exception: Optional[None]
-
-    _pool: ThreadPoolExecutor
-    _futures: deque
     _yield: deque = attrs.field(alias="_yield")  # Python keyword!
-    _exception: Optional[None]
-    yield_list: bool
+    _exception: None = None
+    yield_list: bool = False
 
-    def __init__(self, max_workers: Optional[int] = None, yield_list: bool = False) -> None:
+    def __init__(self, max_workers: int | None = None, yield_list: bool = False) -> None:
         super().__init__()
         self._pool = PriorityThreadPoolExecutor(max_workers)
         self._futures = deque()

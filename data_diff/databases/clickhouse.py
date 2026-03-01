@@ -1,29 +1,29 @@
-from typing import Any, ClassVar, Dict, Optional, Type
+from typing import Any, ClassVar
 
 import attrs
 
-from data_diff.databases.base import (
-    MD5_HEXDIGITS,
-    CHECKSUM_HEXDIGITS,
-    TIMESTAMP_PRECISION_POS,
-    CHECKSUM_OFFSET,
-    BaseDialect,
-    ThreadedDatabase,
-    import_helper,
-    ConnectError,
-)
 from data_diff.abcs.database_types import (
+    Boolean,
     ColType,
     DbPath,
     Decimal,
     Float,
-    Integer,
     FractionalType,
+    Integer,
     Native_UUID,
     TemporalType,
     Text,
     Timestamp,
-    Boolean,
+)
+from data_diff.databases.base import (
+    CHECKSUM_HEXDIGITS,
+    CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
+    TIMESTAMP_PRECISION_POS,
+    BaseDialect,
+    ConnectError,
+    ThreadedDatabase,
+    import_helper,
 )
 from data_diff.schema import RawColumnInfo
 
@@ -169,11 +169,11 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class Clickhouse(ThreadedDatabase):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "clickhouse://<user>:<password>@<host>/<database>"
     CONNECT_URI_PARAMS = ["database?"]
 
-    _args: Dict[str, Any]
+    _args: dict[str, Any]
 
     def __init__(self, *, thread_count: int, **kw) -> None:
         super().__init__(thread_count=thread_count)

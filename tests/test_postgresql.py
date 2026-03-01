@@ -2,11 +2,10 @@ import unittest
 from copy import deepcopy
 from urllib.parse import quote
 
-from data_diff import TableSegment, HashDiffer, Database
-from data_diff import connect_to_table
+from data_diff import Database, HashDiffer, TableSegment, connect_to_table
 from data_diff import databases as db
-from data_diff.queries.api import table, commit
-from tests.common import get_conn, random_table_suffix, connect
+from data_diff.queries.api import commit, table
+from tests.common import connect, get_conn, random_table_suffix
 
 
 class TestUUID(unittest.TestCase):

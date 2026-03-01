@@ -1,22 +1,22 @@
 import os
 import unittest
-from unittest.mock import MagicMock, Mock, patch, ANY
+from unittest.mock import ANY, MagicMock, Mock, patch
 
+from data_diff.dbt import (
+    TDiffVars,
+    _get_diff_vars,
+    _get_prod_path_from_config,
+    _get_prod_path_from_manifest,
+    _local_diff,
+    dbt_diff,
+)
+from data_diff.dbt_parser import (
+    TDatadiffConfig,
+)
 from data_diff.diff_tables import Algorithm
 from data_diff.errors import (
     DataDiffCustomSchemaNoConfigError,
     DataDiffDbtProjectVarsNotFoundError,
-)
-from data_diff.dbt import (
-    _get_diff_vars,
-    _get_prod_path_from_config,
-    _get_prod_path_from_manifest,
-    dbt_diff,
-    _local_diff,
-    TDiffVars,
-)
-from data_diff.dbt_parser import (
-    TDatadiffConfig,
 )
 from data_diff.schema import RawColumnInfo
 from tests.test_cli import run_datadiff_cli
@@ -33,12 +33,12 @@ class TestDbtDiffer(unittest.TestCase):
         )
 
         orders_expected_output = """
-        jaffle_shop.prod.orders <> jaffle_shop.dev.orders 
-        Primary Keys: ['order_id'] 
-        Where Filter: 'amount >= 0' 
-        Included Columns: ['order_id', 'customer_id', 'order_date', 'amount', 'credit_card_amount', 'coupon_amount', 
-        'bank_transfer_amount', 'gift_card_amount'] 
-        Excluded Columns: ['new_column'] 
+        jaffle_shop.prod.orders <> jaffle_shop.dev.orders
+        Primary Keys: ['order_id']
+        Where Filter: 'amount >= 0'
+        Included Columns: ['order_id', 'customer_id', 'order_date', 'amount', 'credit_card_amount', 'coupon_amount',
+        'bank_transfer_amount', 'gift_card_amount']
+        Excluded Columns: ['new_column']
         Columns removed [-1]: {'status'}
         Columns added [+1]: {'new_column'}
         Type changed [1]: {'order_date'}
@@ -58,30 +58,30 @@ class TestDbtDiffer(unittest.TestCase):
         coupon_amount                       3
         credit_card_amount                  6
         customer_id                         9
-        gift_card_amount                    2 
+        gift_card_amount                    2
         """
 
         stg_payments_expected_output = """
-        jaffle_shop.prod.stg_payments <> jaffle_shop.dev.stg_payments 
-        Primary Keys: ['payment_id'] 
+        jaffle_shop.prod.stg_payments <> jaffle_shop.dev.stg_payments
+        Primary Keys: ['payment_id']
         No row differences
         """
 
         stg_customers_expected_output = """
-        jaffle_shop.prod.stg_customers <> jaffle_shop.dev.stg_customers 
-        Primary Keys: ['customer_id'] 
+        jaffle_shop.prod.stg_customers <> jaffle_shop.dev.stg_customers
+        Primary Keys: ['customer_id']
         No row differences
         """
 
         stg_orders_expected_output = """
-        jaffle_shop.prod.stg_orders <> jaffle_shop.dev.stg_orders 
-        Primary Keys: ['order_id'] 
+        jaffle_shop.prod.stg_orders <> jaffle_shop.dev.stg_orders
+        Primary Keys: ['order_id']
         No row differences
         """
 
         customers_expected_output = """
-        jaffle_shop.prod.customers <> jaffle_shop.dev.customers 
-        Primary Keys: ['customer_id'] 
+        jaffle_shop.prod.customers <> jaffle_shop.dev.customers
+        Primary Keys: ['customer_id']
         No row differences
         """
 

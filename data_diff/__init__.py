@@ -1,21 +1,21 @@
-from typing import Sequence, Tuple, Iterator, Optional, Union
+from collections.abc import Iterator, Sequence
 
-from data_diff.abcs.database_types import DbTime, DbPath
+from data_diff.abcs.database_types import DbPath, DbTime
 from data_diff.databases import Database
 from data_diff.databases._connect import connect
-from data_diff.version import __version__
 from data_diff.diff_tables import Algorithm
-from data_diff.hashdiff_tables import HashDiffer, DEFAULT_BISECTION_THRESHOLD, DEFAULT_BISECTION_FACTOR
-from data_diff.joindiff_tables import JoinDiffer, TABLE_WRITE_LIMIT
+from data_diff.hashdiff_tables import DEFAULT_BISECTION_FACTOR, DEFAULT_BISECTION_THRESHOLD, HashDiffer
+from data_diff.joindiff_tables import TABLE_WRITE_LIMIT, JoinDiffer
 from data_diff.table_segment import TableSegment
-from data_diff.utils import eval_name_template, Vector
+from data_diff.utils import Vector, eval_name_template
+from data_diff.version import __version__ as __version__
 
 
 def connect_to_table(
-    db_info: Union[str, dict],
-    table_name: Union[DbPath, str],
+    db_info: str | dict,
+    table_name: DbPath | str,
     key_columns: str = ("id",),
-    thread_count: Optional[int] = 1,
+    thread_count: int | None = 1,
     **kwargs,
 ) -> TableSegment:
     """Connects to the given database, and creates a TableSegment instance
@@ -49,7 +49,7 @@ def diff_tables(
     # Name of updated column, which signals that rows changed (usually updated_at or last_update)
     update_column: str = None,
     # Extra columns to compare
-    extra_columns: Tuple[str, ...] = None,
+    extra_columns: tuple[str, ...] = None,
     # Start/end key_column values, used to restrict the segment
     min_key: Vector = None,
     max_key: Vector = None,
@@ -60,7 +60,7 @@ def diff_tables(
     threaded: bool = True,
     # Maximum size of each threadpool. None = auto. Only relevant when threaded is True.
     # There may be many pools, so number of actual threads can be a lot higher.
-    max_threadpool_size: Optional[int] = 1,
+    max_threadpool_size: int | None = 1,
     # Algorithm
     algorithm: Algorithm = Algorithm.AUTO,
     # An additional 'where' expression to restrict the search space.
@@ -74,7 +74,7 @@ def diff_tables(
     # Enable/disable sampling of exclusive rows. Creates a temporary table. (joindiff only)
     sample_exclusive_rows: bool = False,
     # Path of new table to write diff results to. Disabled if not provided. (joindiff only)
-    materialize_to_table: Union[str, DbPath] = None,
+    materialize_to_table: str | DbPath = None,
     # Materialize every row, not just those that are different. (joindiff only)
     materialize_all_rows: bool = False,
     # Maximum number of rows to write when materializing, per thread. (joindiff only)

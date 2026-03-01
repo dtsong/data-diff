@@ -1,15 +1,14 @@
+from collections.abc import Generator, Sequence
 from datetime import datetime
-from typing import Any, Generator, List, Optional, Sequence, Union, Dict
 
 import attrs
 from typing_extensions import Self
 
-from data_diff.utils import ArithString
 from data_diff.abcs.compiler import Compilable
-from data_diff.schema import Schema
-
-from data_diff.queries.base import SKIP, args_as_tuple, SqeletonError
 from data_diff.abcs.database_types import DbPath
+from data_diff.queries.base import SKIP, SqeletonError, args_as_tuple
+from data_diff.schema import Schema
+from data_diff.utils import ArithString
 
 
 class QueryBuilderError(SqeletonError):
@@ -30,7 +29,7 @@ class ExprNode(Compilable):
     "Base class for query expression nodes"
 
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return None
 
     def _dfs_values(self):
@@ -50,13 +49,13 @@ class ExprNode(Compilable):
 
 
 # Query expressions can only interact with objects that are an instance of 'Expr'
-Expr = Union[ExprNode, str, bool, int, float, datetime, ArithString, None]
+Expr = ExprNode | str | bool | int | float | datetime | ArithString | None
 
 
 @attrs.define(frozen=True, eq=False)
 class Code(ExprNode, Root):
     code: str
-    args: Optional[Dict[str, Expr]] = None
+    args: dict[str, Expr] | None = None
 
 
 def _expr_type(e: Expr) -> type:
@@ -90,7 +89,7 @@ class ITable:
         return self
 
     @property
-    def schema(self) -> Optional[Schema]:
+    def schema(self) -> Schema | None:
         return None
 
     def select(self, *exprs, distinct=SKIP, optimizer_hints=SKIP, **named_exprs) -> "ITable":
@@ -218,7 +217,7 @@ class ITable:
 @attrs.define(frozen=True, eq=False)
 class Concat(ExprNode):
     exprs: list
-    sep: Optional[str] = None
+    sep: str | None = None
 
 
 @attrs.define(frozen=True, eq=False)
@@ -227,7 +226,7 @@ class Count(ExprNode):
     distinct: bool = False
 
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return int
 
 
@@ -296,7 +295,7 @@ class WhenThen(ExprNode):
 @attrs.define(frozen=True, eq=False)
 class CaseWhen(ExprNode):
     cases: Sequence[WhenThen]
-    else_expr: Optional[Expr] = None
+    else_expr: Expr | None = None
 
     @property
     def type(self):
@@ -353,7 +352,7 @@ class IsDistinctFrom(LazyOps, ExprNode):
     b: Expr
 
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return bool
 
 
@@ -380,7 +379,7 @@ class UnaryOp(LazyOps, ExprNode):
 @attrs.define(frozen=True)
 class BinBoolOp(BinOp):
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return bool
 
 
@@ -399,10 +398,10 @@ class Column(LazyOps, ExprNode):
 @attrs.define(frozen=False, eq=False)
 class TablePath(ExprNode, ITable):
     path: DbPath
-    schema: Optional[Schema] = None  # overrides the inherited property
+    schema: Schema | None = None  # overrides the inherited property
 
     # Statement shorthands
-    def create(self, source_table: ITable = None, *, if_not_exists: bool = False, primary_keys: List[str] = None):
+    def create(self, source_table: ITable = None, *, if_not_exists: bool = False, primary_keys: list[str] = None):
         """Returns a query expression to create a new table.
 
         Parameters:
@@ -430,7 +429,7 @@ class TablePath(ExprNode, ITable):
         """Returns a query expression to truncate the table. (remove all rows)"""
         return TruncateTable(self)
 
-    def insert_rows(self, rows: Sequence, *, columns: List[str] = None):
+    def insert_rows(self, rows: Sequence, *, columns: list[str] = None):
         """Returns a query expression to insert rows to the table, given as Python values.
 
         Parameters:
@@ -440,7 +439,7 @@ class TablePath(ExprNode, ITable):
         rows = list(rows)
         return InsertToTable(self, ConstantTable(rows), columns=columns)
 
-    def insert_row(self, *values, columns: List[str] = None):
+    def insert_row(self, *values, columns: list[str] = None):
         """Returns a query expression to insert a single row to the table, given as Python values.
 
         Parameters:
@@ -476,9 +475,9 @@ class TableAlias(ExprNode, ITable):
 @attrs.define(frozen=True, eq=False)
 class Join(ExprNode, ITable, Root):
     source_tables: Sequence[ITable]
-    op: Optional[str] = None
-    on_exprs: Optional[Sequence[Expr]] = None
-    columns: Optional[Sequence[Expr]] = None
+    op: str | None = None
+    on_exprs: Sequence[Expr] | None = None
+    columns: Sequence[Expr] | None = None
 
     @property
     def schema(self) -> Schema:
@@ -500,7 +499,7 @@ class Join(ExprNode, ITable, Root):
 
         return attrs.evolve(self, on_exprs=(self.on_exprs or []) + exprs)
 
-    def select(self, *exprs, **named_exprs) -> Union[Self, ITable]:
+    def select(self, *exprs, **named_exprs) -> Self | ITable:
         """Select fields to return from the JOIN operation
 
         See Also: ``ITable.select()``
@@ -520,9 +519,9 @@ class Join(ExprNode, ITable, Root):
 @attrs.define(frozen=True, eq=False)
 class GroupBy(ExprNode, ITable, Root):
     table: ITable
-    keys: Optional[Sequence[Expr]] = None  # IKey?
-    values: Optional[Sequence[Expr]] = None
-    having_exprs: Optional[Sequence[Expr]] = None
+    keys: Sequence[Expr] | None = None  # IKey?
+    values: Sequence[Expr] | None = None
+    having_exprs: Sequence[Expr] | None = None
 
     def __attrs_post_init__(self) -> None:
         if not self.keys and not self.values:
@@ -568,15 +567,15 @@ class TableOp(ExprNode, ITable, Root):
 
 @attrs.define(frozen=True, eq=False)
 class Select(ExprNode, ITable, Root):
-    table: Optional[Expr] = None
-    columns: Optional[Sequence[Expr]] = None
-    where_exprs: Optional[Sequence[Expr]] = None
-    order_by_exprs: Optional[Sequence[Expr]] = None
-    group_by_exprs: Optional[Sequence[Expr]] = None
-    having_exprs: Optional[Sequence[Expr]] = None
-    limit_expr: Optional[int] = None
+    table: Expr | None = None
+    columns: Sequence[Expr] | None = None
+    where_exprs: Sequence[Expr] | None = None
+    order_by_exprs: Sequence[Expr] | None = None
+    group_by_exprs: Sequence[Expr] | None = None
+    having_exprs: Sequence[Expr] | None = None
+    limit_expr: int | None = None
     distinct: bool = False
-    optimizer_hints: Optional[Sequence[Expr]] = None
+    optimizer_hints: Sequence[Expr] | None = None
 
     @property
     def schema(self) -> Schema:
@@ -627,8 +626,8 @@ class Select(ExprNode, ITable, Root):
 @attrs.define(frozen=True, eq=False)
 class Cte(ExprNode, ITable):
     table: Expr
-    name: Optional[str] = None
-    params: Optional[Sequence[str]] = None
+    name: str | None = None
+    params: Sequence[str] | None = None
 
     @property
     def source_table(self) -> "ITable":
@@ -658,7 +657,7 @@ def resolve_names(source_table, exprs):
 @attrs.define(frozen=False, eq=False)
 class _ResolveColumn(LazyOps, ExprNode):
     resolve_name: str
-    resolved: Optional[Expr] = None
+    resolved: Expr | None = None
 
     def resolve(self, expr: Expr):
         if self.resolved is not None:
@@ -701,7 +700,7 @@ class In(ExprNode):
     list: Sequence[Expr]
 
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return bool
 
 
@@ -714,7 +713,7 @@ class Cast(ExprNode):
 @attrs.define(frozen=True, eq=False)
 class Random(LazyOps, ExprNode):
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return float
 
 
@@ -728,14 +727,14 @@ class Explain(ExprNode, Root):
     select: Select
 
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return str
 
 
 @attrs.define(frozen=True)
 class CurrentTimestamp(ExprNode):
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return datetime
 
 
@@ -745,16 +744,16 @@ class CurrentTimestamp(ExprNode):
 @attrs.define(frozen=True)
 class Statement(Compilable, Root):
     @property
-    def type(self) -> Optional[type]:
+    def type(self) -> type | None:
         return None
 
 
 @attrs.define(frozen=True, eq=False)
 class CreateTable(Statement):
     path: TablePath
-    source_table: Optional[Expr] = None
+    source_table: Expr | None = None
     if_not_exists: bool = False
-    primary_keys: Optional[List[str]] = None
+    primary_keys: list[str] | None = None
 
 
 @attrs.define(frozen=True, eq=False)
@@ -772,8 +771,8 @@ class TruncateTable(Statement):
 class InsertToTable(Statement):
     path: TablePath
     expr: Expr
-    columns: Optional[List[str]] = None
-    returning_exprs: Optional[List[str]] = None
+    columns: list[str] | None = None
+    returning_exprs: list[str] | None = None
 
     def returning(self, *exprs) -> Self:
         """Add a 'RETURNING' clause to the insert expression.

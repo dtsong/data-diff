@@ -1,33 +1,30 @@
-import sys
-import unittest
-import time
 import json
-import re
-import uuid
-from datetime import datetime, timedelta, timezone
 import logging
+import re
+import sys
+import time
+import unittest
+import uuid
+from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from itertools import islice, repeat, chain
-from typing import Iterator
+from itertools import chain, islice, repeat
 
 from parameterized import parameterized
 
-from data_diff.databases.base import Row
-from data_diff.utils import number_to_human
-from data_diff.queries.api import table, commit, this, Code
-from data_diff.queries.api import insert_rows_in_batches
-
 from data_diff import databases as db
+from data_diff.databases.base import Row
+from data_diff.hashdiff_tables import DEFAULT_BISECTION_THRESHOLD, HashDiffer
+from data_diff.queries.api import Code, commit, insert_rows_in_batches, table, this
 from data_diff.query_utils import drop_table
-from data_diff.utils import accumulate
-from data_diff.hashdiff_tables import HashDiffer, DEFAULT_BISECTION_THRESHOLD
 from data_diff.table_segment import TableSegment
+from data_diff.utils import accumulate, number_to_human
 from tests.common import (
+    BENCHMARK,
     CONN_STRINGS,
+    GIT_REVISION,
     N_SAMPLES,
     N_THREADS,
-    BENCHMARK,
-    GIT_REVISION,
     TEST_ACROSS_ALL_DBS,
     get_conn,
     random_table_suffix,

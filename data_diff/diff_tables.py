@@ -2,20 +2,21 @@
 
 import threading
 from abc import ABC, abstractmethod
-from enum import Enum
-from contextlib import contextmanager
-from operator import methodcaller
-from typing import Any, Dict, Set, List, Tuple, Iterator, Optional, Union
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
+from enum import Enum
+from operator import methodcaller
+from typing import Any
 
 import attrs
 
-from data_diff.errors import DataDiffMismatchingKeyTypesError
-from data_diff.info_tree import InfoTree, SegmentInfo
-from data_diff.utils import dbt_diff_string_template, safezip, getLogger, Vector
-from data_diff.thread_utils import ThreadedYielder
-from data_diff.table_segment import TableSegment, create_mesh_from_points
 from data_diff.abcs.database_types import IKey
+from data_diff.errors import DataDiffMismatchingKeyTypesError
+from data_diff.info_tree import InfoTree
+from data_diff.table_segment import TableSegment, create_mesh_from_points
+from data_diff.thread_utils import ThreadedYielder
+from data_diff.utils import Vector, dbt_diff_string_template, getLogger, safezip
 
 logger = getLogger(__name__)
 
@@ -26,8 +27,8 @@ class Algorithm(Enum):
     HASHDIFF = "hashdiff"
 
 
-DiffResult = Iterator[Tuple[str, tuple]]  # Iterator[Tuple[Literal["+", "-"], tuple]]
-DiffResultList = Iterator[List[Tuple[str, tuple]]]
+DiffResult = Iterator[tuple[str, tuple]]  # Iterator[Tuple[Literal["+", "-"], tuple]]
+DiffResultList = Iterator[list[tuple[str, tuple]]]
 
 
 @attrs.define(frozen=False)
@@ -35,7 +36,7 @@ class ThreadBase:
     "Provides utility methods for optional threading"
 
     threaded: bool = True
-    max_threadpool_size: Optional[int] = 1
+    max_threadpool_size: int | None = 1
 
     def _thread_map(self, func, iterable):
         if not self.threaded:
@@ -73,12 +74,12 @@ class ThreadBase:
 
 @attrs.define(frozen=True)
 class DiffStats:
-    diff_by_sign: Dict[str, int]
+    diff_by_sign: dict[str, int]
     table1_count: int
     table2_count: int
     unchanged: int
     diff_percent: float
-    extra_column_diffs: Optional[Dict[str, int]]
+    extra_column_diffs: dict[str, int] | None
 
 
 @attrs.define(frozen=True)
@@ -104,7 +105,7 @@ class DiffResultWrapper:
         if is_dbt:
             extra_column_values_store = {}
             extra_columns = self.info_tree.info.tables[0].extra_columns
-            extra_column_diffs = {k: 0 for k in extra_columns}
+            extra_column_diffs = dict.fromkeys(extra_columns, 0)
 
         for sign, values in self.result_list:
             k = values[:len_key_columns]
@@ -115,7 +116,7 @@ class DiffResultWrapper:
                     raise RuntimeError(f"Unexpected duplicate sign {sign!r} for key {k!r} in diff results.")
                 diff_by_key[k] = "!"
                 if is_dbt:
-                    for i in range(0, len(extra_columns)):
+                    for i in range(len(extra_columns)):
                         if extra_column_values[i] != extra_column_values_store[k][i]:
                             extra_column_diffs[extra_columns[i]] += 1
             else:
@@ -123,7 +124,7 @@ class DiffResultWrapper:
                 if is_dbt:
                     extra_column_values_store[k] = extra_column_values
 
-        diff_by_sign = {k: 0 for k in "+-!"}
+        diff_by_sign = dict.fromkeys("+-!", 0)
         for sign in diff_by_key.values():
             diff_by_sign[sign] += 1
 
@@ -160,7 +161,7 @@ class DiffResultWrapper:
             string_output += f"{diff_stats.diff_by_sign['+']} rows exclusive to table B (not present in A)\n"
             string_output += f"{diff_stats.diff_by_sign['!']} rows updated\n"
             string_output += f"{diff_stats.unchanged} rows unchanged\n"
-            string_output += f"{100*diff_stats.diff_percent:.2f}% difference score\n"
+            string_output += f"{100 * diff_stats.diff_percent:.2f}% difference score\n"
 
             if self.stats:
                 string_output += "\nExtra-Info:\n"
@@ -192,8 +193,8 @@ class TableDiffer(ThreadBase, ABC):
     bisection_factor = 32
     stats: dict = {}
 
-    ignored_columns1: Set[str] = attrs.field(factory=set)
-    ignored_columns2: Set[str] = attrs.field(factory=set)
+    ignored_columns1: set[str] = attrs.field(factory=set)
+    ignored_columns2: set[str] = attrs.field(factory=set)
     _ignored_columns_lock: threading.Lock = attrs.field(factory=threading.Lock, init=False)
     yield_list: bool = False
 
@@ -241,7 +242,7 @@ class TableDiffer(ThreadBase, ABC):
 
     def _diff_tables_root(
         self, table1: TableSegment, table2: TableSegment, info_tree: InfoTree
-    ) -> Union[DiffResult, DiffResultList]:
+    ) -> DiffResult | DiffResultList:
         return self._bisect_and_diff_tables(table1, table2, info_tree)
 
     @abstractmethod
@@ -255,8 +256,7 @@ class TableDiffer(ThreadBase, ABC):
         level=0,
         segment_index=None,
         segment_count=None,
-    ):
-        ...
+    ): ...
 
     def _bisect_and_diff_tables(self, table1: TableSegment, table2: TableSegment, info_tree):
         if len(table1.key_columns) != len(table2.key_columns):
@@ -311,7 +311,7 @@ class TableDiffer(ThreadBase, ABC):
         # Note: python types can be the same, but the rendering parameters (e.g. casing) can differ.
         min_key2, max_key2 = self._parse_key_range_result(key_types2, next(key_ranges))
 
-        points = [list(sorted(p)) for p in safezip(min_key1, min_key2, max_key1, max_key2)]
+        points = [sorted(p) for p in safezip(min_key1, min_key2, max_key1, max_key2)]
         box_mesh = create_mesh_from_points(*points)
 
         new_regions = [(p1, p2) for p1, p2 in box_mesh if p1 < p2 and not (p1 >= min_key1 and p2 <= max_key1)]
@@ -323,7 +323,7 @@ class TableDiffer(ThreadBase, ABC):
 
         return ti
 
-    def _parse_key_range_result(self, key_types, key_range) -> Tuple[Vector, Vector]:
+    def _parse_key_range_result(self, key_types, key_range) -> tuple[Vector, Vector]:
         min_key_values, max_key_values = key_range
 
         # We add 1 because our ranges are exclusive of the end (like in Python)

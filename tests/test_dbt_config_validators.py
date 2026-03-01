@@ -1,12 +1,11 @@
-from pathlib import Path
-import unittest
 import json
+import unittest
+from pathlib import Path
 
 from data_diff.dbt_config_validators import (
     ManifestJsonConfig,
     RunResultsJsonConfig,
 )
-
 
 RUN_RESULTS_PATH = "tests/dbt_artifacts/run_results/"
 MANIFEST_PATH = "tests/dbt_artifacts/manifests/"
@@ -19,7 +18,7 @@ class TestRunResultsJsonConfig(unittest.TestCase):
 
         for version in versions:
             with self.subTest(version=version):
-                with open(Path(RUN_RESULTS_PATH, f"run_results_{version}.json"), "r", encoding="utf-8") as run_results:
+                with open(Path(RUN_RESULTS_PATH, f"run_results_{version}.json"), encoding="utf-8") as run_results:
                     RunResultsJsonConfig.parse_obj(json.load(run_results))
 
 
@@ -30,5 +29,5 @@ class TestManifestJsonConfig(unittest.TestCase):
 
         for version in versions:
             with self.subTest(version=version):
-                with open(Path(MANIFEST_PATH, f"manifest_{version}.json"), "r", encoding="utf-8") as manifest:
+                with open(Path(MANIFEST_PATH, f"manifest_{version}.json"), encoding="utf-8") as manifest:
                     ManifestJsonConfig.parse_obj(json.load(manifest))

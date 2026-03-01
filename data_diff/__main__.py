@@ -6,7 +6,6 @@ import time
 from copy import deepcopy
 from datetime import datetime
 from itertools import islice
-from typing import Dict, Optional, Tuple, Union, List, Set
 
 import click
 import rich
@@ -16,13 +15,13 @@ from data_diff import Database, DbPath
 from data_diff.config import apply_config_from_file
 from data_diff.databases._connect import connect
 from data_diff.diff_tables import Algorithm, TableDiffer
-from data_diff.hashdiff_tables import HashDiffer, DEFAULT_BISECTION_THRESHOLD, DEFAULT_BISECTION_FACTOR
+from data_diff.hashdiff_tables import DEFAULT_BISECTION_FACTOR, DEFAULT_BISECTION_THRESHOLD, HashDiffer
 from data_diff.joindiff_tables import TABLE_WRITE_LIMIT, JoinDiffer
-from data_diff.parse_time import parse_time_before, UNITS_STR, ParseError
+from data_diff.parse_time import UNITS_STR, ParseError, parse_time_before
 from data_diff.queries.api import current_timestamp
 from data_diff.schema import RawColumnInfo, create_schema
 from data_diff.table_segment import TableSegment
-from data_diff.utils import eval_name_template, remove_password_from_url, safezip, match_like, LogStatusHandler
+from data_diff.utils import LogStatusHandler, eval_name_template, match_like, remove_password_from_url, safezip
 from data_diff.version import __version__
 
 COLOR_SCHEME = {
@@ -31,7 +30,7 @@ COLOR_SCHEME = {
 }
 
 
-def _get_log_handlers(is_dbt: Optional[bool] = False) -> Dict[str, logging.Handler]:
+def _get_log_handlers(is_dbt: bool | None = False) -> dict[str, logging.Handler]:
     handlers = {}
     date_format = "%H:%M:%S"
     log_format_rich = "%(message)s"
@@ -66,7 +65,7 @@ def _remove_passwords_in_dict(d: dict) -> None:
             d[k] = remove_password_from_url(v)
 
 
-def _get_schema(pair: Tuple[Database, DbPath]) -> Dict[str, RawColumnInfo]:
+def _get_schema(pair: tuple[Database, DbPath]) -> dict[str, RawColumnInfo]:
     db, table_path = pair
     return db.query_table_schema(table_path)
 
@@ -101,7 +100,7 @@ class MyHelpFormatter(click.HelpFormatter):
         super().__init__(self, **kwargs)
         self.indent_increment = 6
 
-    def write_usage(self, prog: str, args: str = "", prefix: Optional[str] = None) -> None:
+    def write_usage(self, prog: str, args: str = "", prefix: str | None = None) -> None:
         self.write(f"data-diff v{__version__} - efficiently diff rows across database tables.\n\n")
         self.write("Usage:\n")
         self.write(f"  * In-db diff:    {prog} <database_a> <table_a> <table_b> [OPTIONS]\n")
@@ -335,7 +334,7 @@ def main(conf, run, **kw) -> None:
 
 def _get_dbs(
     threads: int, database1: str, threads1: int, database2: str, threads2: int, interactive: bool
-) -> Tuple[Database, Database]:
+) -> tuple[Database, Database]:
     db1 = connect(database1, threads1 or threads)
     if database1 == database2:
         db2 = db1
@@ -349,7 +348,7 @@ def _get_dbs(
     return db1, db2
 
 
-def _set_age(options: dict, min_age: Optional[str], max_age: Optional[str], db: Database) -> None:
+def _set_age(options: dict, min_age: str | None, max_age: str | None, db: Database) -> None:
     if min_age or max_age:
         now: datetime = db.query(current_timestamp(), datetime).replace(tzinfo=None)
         try:
@@ -371,9 +370,9 @@ def _get_table_differ(
     sample_exclusive_rows: bool,
     materialize_all_rows: bool,
     table_write_limit: int,
-    materialize_to_table: Optional[str],
-    bisection_factor: Optional[int],
-    bisection_threshold: Optional[int],
+    materialize_to_table: str | None,
+    bisection_factor: int | None,
+    bisection_threshold: int | None,
 ) -> TableDiffer:
     algorithm = Algorithm(algorithm)
     if algorithm == Algorithm.AUTO:
@@ -426,17 +425,17 @@ def _print_result(stats, json_output, diff_iter) -> None:
 
 
 def _get_expanded_columns(
-    columns: List[str],
+    columns: list[str],
     case_sensitive: bool,
-    mutual: Set[str],
+    mutual: set[str],
     db1: Database,
     schema1: dict,
     table1: str,
     db2: Database,
     schema2: dict,
     table2: str,
-) -> Set[str]:
-    expanded_columns: Set[str] = set()
+) -> set[str]:
+    expanded_columns: set[str] = set()
     for c in columns:
         cc = c if case_sensitive else c.lower()
         match = set(match_like(cc, mutual))
@@ -450,7 +449,7 @@ def _get_expanded_columns(
     return expanded_columns
 
 
-def _get_threads(threads: Union[int, str, None], threads1: Optional[int], threads2: Optional[int]) -> Tuple[bool, int]:
+def _get_threads(threads: int | str | None, threads1: int | None, threads2: int | None) -> tuple[bool, int]:
     threaded = True
     if threads is None:
         threads = 1
@@ -536,7 +535,7 @@ def _data_diff(
         }
 
         _set_age(options, min_age, max_age, db1)
-        dbs: Tuple[Database, Database] = db1, db2
+        dbs: tuple[Database, Database] = db1, db2
 
         differ = _get_table_differ(
             algorithm,
@@ -600,7 +599,7 @@ def _data_diff(
         _print_result(stats, json_output, diff_iter)
 
     end = time.monotonic()
-    logging.info(f"Duration: {end-start:.2f} seconds.")
+    logging.info(f"Duration: {end - start:.2f} seconds.")
 
 
 if __name__ == "__main__":

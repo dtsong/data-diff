@@ -1,31 +1,31 @@
-from typing import Any, ClassVar, Dict, Optional, Type
+from typing import Any, ClassVar
 
 import attrs
 
+from data_diff.abcs.database_types import (
+    JSON,
+    Boolean,
+    Date,
+    DbPath,
+    Decimal,
+    Float,
+    Integer,
+    Native_UUID,
+    NumericType,
+    TemporalType,
+    Text,
+    Time,
+    Timestamp,
+    TimestampTZ,
+)
 from data_diff.databases.base import (
     CHECKSUM_HEXDIGITS,
     CHECKSUM_OFFSET,
+    BaseDialect,
+    ConnectError,
     QueryError,
     ThreadedDatabase,
     import_helper,
-    ConnectError,
-    BaseDialect,
-)
-from data_diff.abcs.database_types import (
-    JSON,
-    NumericType,
-    Timestamp,
-    TimestampTZ,
-    DbPath,
-    Float,
-    Decimal,
-    Integer,
-    TemporalType,
-    Native_UUID,
-    Text,
-    Boolean,
-    Date,
-    Time,
 )
 
 
@@ -117,9 +117,9 @@ class Dialect(BaseDialect):
     def limit_select(
         self,
         select_query: str,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
-        has_order_by: Optional[bool] = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        has_order_by: bool | None = None,
     ) -> str:
         if offset:
             raise NotImplementedError("No support for OFFSET in query")
@@ -163,12 +163,12 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class MsSQL(ThreadedDatabase):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "mssql://<user>:<password>@<host>/<database>/<schema>"
     CONNECT_URI_PARAMS = ["database", "schema"]
 
     default_database: str
-    _args: Dict[str, Any]
+    _args: dict[str, Any]
     _mssql: Any
 
     def __init__(self, host, port, user, password, *, database, thread_count, **kw) -> None:

@@ -1,15 +1,15 @@
 import decimal
 from abc import ABC, abstractmethod
-from typing import Collection, List, Optional, Tuple, Type, TypeVar, Union
+from collections.abc import Collection
 from datetime import datetime
+from typing import TypeVar
 
 import attrs
 
 from data_diff.utils import ArithAlphanumeric, ArithUUID, Unknown
 
-
-DbPath = Tuple[str, ...]
-DbKey = Union[int, str, bytes, ArithUUID, ArithAlphanumeric]
+DbPath = tuple[str, ...]
+DbKey = int | str | bytes | ArithUUID | ArithAlphanumeric
 DbTime = datetime
 
 N = TypeVar("N")
@@ -32,22 +32,22 @@ class Collation:
     absorbs_damage: bool = False
 
     # Ordinal soring by ASCII/UTF8 (True), or alphabetic as per locale/country/etc (False).
-    ordinal: Optional[bool] = None
+    ordinal: bool | None = None
 
     # Lowercase first (aAbBcC or abcABC). Otherwise, uppercase first (AaBbCc or ABCabc).
-    lower_first: Optional[bool] = None
+    lower_first: bool | None = None
 
     # 2-letter lower-case locale and upper-case country codes, e.g. en_US. Ignored for ordinals.
-    language: Optional[str] = None
-    country: Optional[str] = None
+    language: str | None = None
+    country: str | None = None
 
     # There are also space-, punctuation-, width-, kana-(in)sensitivity, so on.
     # Ignore everything not related to xdb alignment. Only case- & accent-sensitivity are common.
-    case_sensitive: Optional[bool] = None
-    accent_sensitive: Optional[bool] = None
+    case_sensitive: bool | None = None
+    accent_sensitive: bool | None = None
 
     # Purely informational, for debugging:
-    _source: Union[None, str, Collection[str]] = None
+    _source: None | str | Collection[str] = None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Collation):
@@ -103,12 +103,12 @@ class Collation:
 @attrs.define(frozen=True, kw_only=True)
 class ColType:
     # Arbitrary metadata added and fetched at runtime.
-    _notes: List[N] = attrs.field(factory=list, init=False, hash=False, eq=False)
+    _notes: list[N] = attrs.field(factory=list, init=False, hash=False, eq=False)
 
     def add_note(self, note: N) -> None:
         self._notes.append(note)
 
-    def get_note(self, cls: Type[N]) -> Optional[N]:
+    def get_note(self, cls: type[N]) -> N | None:
         """Get the latest added note of type ``cls`` or its descendants."""
         for note in reversed(self._notes):
             if isinstance(note, cls):
@@ -123,7 +123,7 @@ class ColType:
 @attrs.define(frozen=True)
 class PrecisionType(ColType):
     precision: int
-    rounds: Union[bool, Unknown] = Unknown
+    rounds: bool | Unknown = Unknown
 
 
 @attrs.define(frozen=True)
@@ -204,7 +204,7 @@ class Decimal(FractionalType, IKey):  # Snowflake may use Decimal as a key
 @attrs.define(frozen=True)
 class StringType(ColType):
     python_type = str
-    collation: Optional[Collation] = attrs.field(default=None, kw_only=True)
+    collation: Collation | None = attrs.field(default=None, kw_only=True)
 
 
 @attrs.define(frozen=True)
@@ -227,8 +227,8 @@ class String_UUID(ColType_UUID, StringType):
     # Case is important for UUIDs stored as regular string, not native UUIDs stored as numbers.
     # We slice them internally as numbers, but render them back to SQL as lower/upper case.
     # None means we do not know for sure, behave as with False, but it might be unreliable.
-    lowercase: Optional[bool] = None
-    uppercase: Optional[bool] = None
+    lowercase: bool | None = None
+    uppercase: bool | None = None
 
     def make_value(self, v: str) -> ArithUUID:
         return self.python_type(v, lowercase=self.lowercase, uppercase=self.uppercase)

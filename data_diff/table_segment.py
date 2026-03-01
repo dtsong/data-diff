@@ -1,26 +1,24 @@
-import time
-from typing import Container, Dict, List, Optional, Sequence, Tuple
 import logging
+import time
+from collections.abc import Container, Sequence
 from itertools import product
 
 import attrs
 from typing_extensions import Self
 
-from data_diff.utils import safezip, Vector
-from data_diff.utils import ArithString, split_space
+from data_diff.abcs.database_types import DbKey, DbPath, DbTime, IKey
 from data_diff.databases.base import Database
-from data_diff.abcs.database_types import DbPath, DbKey, DbTime, IKey
+from data_diff.queries.api import SKIP, Code, Count, max_, min_, table, this
+from data_diff.queries.extras import ApplyFuncAndNormalizeAsString, Checksum, NormalizeAsString
 from data_diff.schema import RawColumnInfo, Schema, create_schema
-from data_diff.queries.extras import Checksum
-from data_diff.queries.api import Count, SKIP, table, this, Expr, min_, max_, Code
-from data_diff.queries.extras import ApplyFuncAndNormalizeAsString, NormalizeAsString
+from data_diff.utils import ArithString, Vector, safezip, split_space
 
 logger = logging.getLogger("table_segment")
 
 RECOMMENDED_CHECKSUM_DURATION = 20
 
 
-def split_key_space(min_key: DbKey, max_key: DbKey, count: int) -> List[DbKey]:
+def split_key_space(min_key: DbKey, max_key: DbKey, count: int) -> list[DbKey]:
     if not (min_key < max_key):
         raise ValueError(f"min_key must be strictly less than max_key. Got min_key={min_key!r}, max_key={max_key!r}.")
 
@@ -45,19 +43,19 @@ def split_key_space(min_key: DbKey, max_key: DbKey, count: int) -> List[DbKey]:
     return [min_key] + checkpoints + [max_key]
 
 
-def int_product(nums: List[int]) -> int:
+def int_product(nums: list[int]) -> int:
     p = 1
     for n in nums:
         p *= n
     return p
 
 
-def split_compound_key_space(mn: Vector, mx: Vector, count: int) -> List[List[DbKey]]:
+def split_compound_key_space(mn: Vector, mx: Vector, count: int) -> list[list[DbKey]]:
     """Returns a list of split-points for each key dimension, essentially returning an N-dimensional grid of split points."""
     return [split_key_space(mn_k, mx_k, count) for mn_k, mx_k in safezip(mn, mx)]
 
 
-def create_mesh_from_points(*values_per_dim: list) -> List[Tuple[Vector, Vector]]:
+def create_mesh_from_points(*values_per_dim: list) -> list[tuple[Vector, Vector]]:
     """Given a list of values along each axis of N dimensional space,
     return an array of boxes whose start-points & end-points align with the given values,
     and together consitute a mesh filling that space entirely (within the bounds of the given values).
@@ -123,20 +121,20 @@ class TableSegment:
     table_path: DbPath
 
     # Columns
-    key_columns: Tuple[str, ...]
-    update_column: Optional[str] = None
-    extra_columns: Tuple[str, ...] = ()
+    key_columns: tuple[str, ...]
+    update_column: str | None = None
+    extra_columns: tuple[str, ...] = ()
     ignored_columns: Container[str] = frozenset()
 
     # Restrict the segment
-    min_key: Optional[Vector] = None
-    max_key: Optional[Vector] = None
-    min_update: Optional[DbTime] = None
-    max_update: Optional[DbTime] = None
-    where: Optional[str] = None
+    min_key: Vector | None = None
+    max_key: Vector | None = None
+    min_update: DbTime | None = None
+    max_update: DbTime | None = None
+    where: str | None = None
 
-    case_sensitive: Optional[bool] = True
-    _schema: Optional[Schema] = None
+    case_sensitive: bool | None = True
+    _schema: Schema | None = None
 
     def __attrs_post_init__(self) -> None:
         if not self.update_column and (self.min_update or self.max_update):
@@ -150,10 +148,10 @@ class TableSegment:
                 f"Error: min_update expected to be smaller than max_update! ({self.min_update} >= {self.max_update})"
             )
 
-    def _where(self) -> Optional[str]:
+    def _where(self) -> str | None:
         return f"({self.where})" if self.where else None
 
-    def _with_raw_schema(self, raw_schema: Dict[str, RawColumnInfo]) -> Self:
+    def _with_raw_schema(self, raw_schema: dict[str, RawColumnInfo]) -> Self:
         schema = self.database._process_table_schema(self.table_path, raw_schema, self.relevant_columns, self._where())
         return self.new(schema=create_schema(self.database.name, self.table_path, schema, self.case_sensitive))
 
@@ -164,7 +162,7 @@ class TableSegment:
 
         return self._with_raw_schema(self.database.query_table_schema(self.table_path))
 
-    def get_schema(self) -> Dict[str, RawColumnInfo]:
+    def get_schema(self) -> dict[str, RawColumnInfo]:
         return self.database.query_table_schema(self.table_path)
 
     def _make_key_range(self):
@@ -196,9 +194,9 @@ class TableSegment:
         # Fetch all the original columns, even if some were later excluded from checking.
         fetched_cols = [NormalizeAsString(this[c]) for c in self.relevant_columns]
         select = self.make_select().select(*fetched_cols)
-        return self.database.query(select, List[Tuple])
+        return self.database.query(select, list[tuple])
 
-    def choose_checkpoints(self, count: int) -> List[List[DbKey]]:
+    def choose_checkpoints(self, count: int) -> list[list[DbKey]]:
         "Suggests a bunch of evenly-spaced checkpoints to split by, including start, end."
 
         if not self.is_bounded:
@@ -209,7 +207,7 @@ class TableSegment:
 
         return split_compound_key_space(self.min_key, self.max_key, count)
 
-    def segment_by_checkpoints(self, checkpoints: List[List[DbKey]]) -> List["TableSegment"]:
+    def segment_by_checkpoints(self, checkpoints: list[list[DbKey]]) -> list["TableSegment"]:
         "Split the current TableSegment to a bunch of smaller ones, separated by the given checkpoints"
 
         return [self.new_key_bounds(min_key=s, max_key=e) for s, e in create_mesh_from_points(*checkpoints)]
@@ -218,7 +216,7 @@ class TableSegment:
         """Creates a copy of the instance using 'replace()'"""
         return attrs.evolve(self, **kwargs)
 
-    def new_key_bounds(self, min_key: Vector, max_key: Vector, *, key_types: Optional[Sequence[IKey]] = None) -> Self:
+    def new_key_bounds(self, min_key: Vector, max_key: Vector, *, key_types: Sequence[IKey] | None = None) -> Self:
         if self.min_key is not None:
             if not (self.min_key <= min_key):
                 raise ValueError(
@@ -247,7 +245,7 @@ class TableSegment:
         return attrs.evolve(self, min_key=min_key, max_key=max_key)
 
     @property
-    def relevant_columns(self) -> List[str]:
+    def relevant_columns(self) -> list[str]:
         extras = list(self.extra_columns)
 
         if self.update_column and self.update_column not in extras:
@@ -259,7 +257,7 @@ class TableSegment:
         """Count how many rows are in the segment, in one pass."""
         return self.database.query(self.make_select().select(Count()), int)
 
-    def count_and_checksum(self) -> Tuple[int, int]:
+    def count_and_checksum(self) -> tuple[int, int]:
         """Count and checksum the rows in the segment, in one pass."""
 
         checked_columns = [c for c in self.relevant_columns if c not in self.ignored_columns]
@@ -281,7 +279,7 @@ class TableSegment:
                 raise RuntimeError(f"Expected a non-zero checksum when count={count!r}, got checksum={checksum!r}.")
         return count or 0, int(checksum) if count else None
 
-    def query_key_range(self) -> Tuple[tuple, tuple]:
+    def query_key_range(self) -> tuple[tuple, tuple]:
         """Query database for minimum and maximum key. This is used for setting the initial bounds."""
         # Normalizes the result (needed for UUIDs) after the min/max computation
         select = self.make_select().select(

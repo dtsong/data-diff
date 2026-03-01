@@ -1,37 +1,35 @@
 """Provides classes for performing a table diff using JOIN"""
 
+import logging
 from decimal import Decimal
 from functools import partial
-import logging
-from typing import List, Optional
 from itertools import chain
 
 import attrs
 
-from data_diff.databases import Database, MsSQL, MySQL, BigQuery, Presto, Oracle, Snowflake, DuckDB
-from data_diff.abcs.database_types import NumericType, DbPath
+from data_diff.abcs.database_types import DbPath, NumericType
+from data_diff.databases import BigQuery, Database, DuckDB, MsSQL, MySQL, Oracle, Presto, Snowflake
 from data_diff.databases.base import Compiler
+from data_diff.diff_tables import DiffResult, TableDiffer
+from data_diff.info_tree import InfoTree
 from data_diff.queries.api import (
-    table,
-    sum_,
     and_,
     if_,
+    leftjoin,
     or_,
     outerjoin,
-    leftjoin,
     rightjoin,
+    sum_,
+    table,
     this,
     when,
 )
-from data_diff.queries.ast_classes import Concat, Count, Expr, Random, TablePath, Code, ITable
+from data_diff.queries.ast_classes import Code, Concat, Count, Expr, ITable, Random, TablePath
 from data_diff.queries.extras import NormalizeAsString
-from data_diff.info_tree import InfoTree
 from data_diff.query_utils import append_to_table, drop_table
-from data_diff.utils import safezip
 from data_diff.table_segment import TableSegment
-from data_diff.diff_tables import TableDiffer, DiffResult
 from data_diff.thread_utils import ThreadedYielder
-
+from data_diff.utils import safezip
 
 logger = logging.getLogger("joindiff_tables")
 
@@ -71,7 +69,7 @@ def bool_to_int(x):
     return if_(x, 1, 0)
 
 
-def _outerjoin(db: Database, a: ITable, b: ITable, keys1: List[str], keys2: List[str], select_fields: dict) -> ITable:
+def _outerjoin(db: Database, a: ITable, b: ITable, keys1: list[str], keys2: list[str], select_fields: dict) -> ITable:
     on = [a[k1] == b[k2] for k1, k2 in safezip(keys1, keys2)]
 
     is_exclusive_a = and_(b[k] == None for k in keys2)
@@ -137,7 +135,7 @@ class JoinDiffer(TableDiffer):
 
     validate_unique_key: bool = True
     sample_exclusive_rows: bool = False
-    materialize_to_table: Optional[DbPath] = None
+    materialize_to_table: DbPath | None = None
     materialize_all_rows: bool = False
     table_write_limit: int = TABLE_WRITE_LIMIT
     skip_null_keys: bool = False
@@ -343,8 +341,8 @@ class JoinDiffer(TableDiffer):
         diff_rows,
         cols,
         is_diff_cols,
-        table1: Optional[TableSegment] = None,
-        table2: Optional[TableSegment] = None,
+        table1: TableSegment | None = None,
+        table2: TableSegment | None = None,
     ):
         logger.debug(f"Counting differences per column: {table1.table_path} <> {table2.table_path}")
         is_diff_cols_counts = db.query(
@@ -363,8 +361,8 @@ class JoinDiffer(TableDiffer):
         diff_rows,
         a_cols,
         b_cols,
-        table1: Optional[TableSegment] = None,
-        table2: Optional[TableSegment] = None,
+        table1: TableSegment | None = None,
+        table2: TableSegment | None = None,
     ):
         if isinstance(db, (Oracle, MsSQL)):
             exclusive_rows_query = diff_rows.where((this.is_exclusive_a == 1) | (this.is_exclusive_b == 1))

@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
 
-from data_diff import diff_tables, connect_to_table, Algorithm
+from data_diff import Algorithm, connect_to_table, diff_tables
 from data_diff.databases.mysql import MySQL
-from data_diff.queries.api import table, commit
-
-from tests.common import TEST_MYSQL_CONN_STRING, get_conn, random_table_suffix, DiffTestCase
+from data_diff.queries.api import commit
+from tests.common import TEST_MYSQL_CONN_STRING, DiffTestCase
 
 
 class TestApi(DiffTestCase):

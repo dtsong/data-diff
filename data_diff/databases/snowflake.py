@@ -1,38 +1,38 @@
 import base64
-from typing import Any, ClassVar, Union, List, Type, Optional
 import logging
+from typing import Any, ClassVar
 
 import attrs
 
 from data_diff.abcs.database_types import (
-    Timestamp,
-    TimestampTZ,
-    Decimal,
-    Float,
-    Text,
-    FractionalType,
-    TemporalType,
-    DbPath,
     Boolean,
     Date,
+    DbPath,
+    Decimal,
+    Float,
+    FractionalType,
+    TemporalType,
+    Text,
     Time,
+    Timestamp,
+    TimestampTZ,
 )
 from data_diff.databases.base import (
+    CHECKSUM_MASK,
+    CHECKSUM_OFFSET,
     BaseDialect,
     ConnectError,
     Database,
-    import_helper,
-    CHECKSUM_MASK,
     ThreadLocalInterpreter,
-    CHECKSUM_OFFSET,
+    import_helper,
 )
 
 
 @import_helper("snowflake")
 def import_snowflake():
     import snowflake.connector
-    from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import serialization
 
     return snowflake, serialization, default_backend
 
@@ -114,14 +114,14 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class Snowflake(Database):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "snowflake://<user>:<password>@<account>/<database>/<SCHEMA>?warehouse=<WAREHOUSE>"
     CONNECT_URI_PARAMS = ["database", "schema"]
     CONNECT_URI_KWPARAMS = ["warehouse"]
 
     _conn: Any
 
-    def __init__(self, *, schema: str, key: Optional[str] = None, key_content: Optional[str] = None, **kw) -> None:
+    def __init__(self, *, schema: str, key: str | None = None, key_content: str | None = None, **kw) -> None:
         super().__init__()
         snowflake, serialization, default_backend = import_snowflake()
         logging.getLogger("snowflake.connector").setLevel(logging.WARNING)
@@ -170,7 +170,7 @@ class Snowflake(Database):
         super().close()
         self._conn.close()
 
-    def _query(self, sql_code: Union[str, ThreadLocalInterpreter]):
+    def _query(self, sql_code: str | ThreadLocalInterpreter):
         "Uses the standard SQL cursor interface"
         return self._query_conn(self._conn, sql_code)
 
@@ -204,5 +204,5 @@ class Snowflake(Database):
     def is_autocommit(self) -> bool:
         return True
 
-    def query_table_unique_columns(self, path: DbPath) -> List[str]:
+    def query_table_unique_columns(self, path: DbPath) -> list[str]:
         return []

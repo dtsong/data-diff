@@ -1,10 +1,9 @@
 import logging
-from typing import Hashable, MutableMapping, Type, Optional, Union, Dict
-from itertools import zip_longest
-from contextlib import suppress
-import weakref
-
 import sys
+import weakref
+from collections.abc import Hashable, MutableMapping
+from contextlib import suppress
+from itertools import zip_longest
 
 import attrs
 import dsnparse
@@ -20,24 +19,24 @@ else:
 from typing_extensions import Self
 
 from data_diff.databases.base import Database, ThreadedDatabase
-from data_diff.databases.postgresql import PostgreSQL
-from data_diff.databases.mysql import MySQL
-from data_diff.databases.oracle import Oracle
-from data_diff.databases.snowflake import Snowflake
 from data_diff.databases.bigquery import BigQuery
-from data_diff.databases.redshift import Redshift
-from data_diff.databases.presto import Presto
-from data_diff.databases.databricks import Databricks
-from data_diff.databases.trino import Trino
 from data_diff.databases.clickhouse import Clickhouse
-from data_diff.databases.vertica import Vertica
+from data_diff.databases.databricks import Databricks
 from data_diff.databases.duckdb import DuckDB
 from data_diff.databases.mssql import MsSQL
+from data_diff.databases.mysql import MySQL
+from data_diff.databases.oracle import Oracle
+from data_diff.databases.postgresql import PostgreSQL
+from data_diff.databases.presto import Presto
+from data_diff.databases.redshift import Redshift
+from data_diff.databases.snowflake import Snowflake
+from data_diff.databases.trino import Trino
+from data_diff.databases.vertica import Vertica
 
 
 @attrs.frozen
 class MatchUriPath:
-    database_cls: Type[Database]
+    database_cls: type[Database]
 
     def match_path(self, dsn):
         help_str = self.database_cls.CONNECT_URI_HELP
@@ -108,10 +107,10 @@ DATABASE_BY_SCHEME = {
 class Connect:
     """Provides methods for connecting to a supported database using a URL or connection dict."""
 
-    database_by_scheme: Dict[str, Database]
+    database_by_scheme: dict[str, Database]
     conn_cache: MutableMapping[Hashable, Database]
 
-    def __init__(self, database_by_scheme: Dict[str, Database] = DATABASE_BY_SCHEME) -> None:
+    def __init__(self, database_by_scheme: dict[str, Database] = DATABASE_BY_SCHEME) -> None:
         super().__init__()
         self.database_by_scheme = database_by_scheme
         self.conn_cache = weakref.WeakValueDictionary()
@@ -120,7 +119,7 @@ class Connect:
         database_by_scheme = {k: db for k, db in self.database_by_scheme.items() if k in dbs}
         return type(self)(database_by_scheme)
 
-    def connect_to_uri(self, db_uri: str, thread_count: Optional[int] = 1, **kwargs) -> Database:
+    def connect_to_uri(self, db_uri: str, thread_count: int | None = 1, **kwargs) -> Database:
         """Connect to the given database uri
 
         thread_count determines the max number of worker threads per database,
@@ -234,9 +233,7 @@ class Connect:
         "Nop function to be overridden by subclasses."
         return db
 
-    def __call__(
-        self, db_conf: Union[str, dict], thread_count: Optional[int] = 1, shared: bool = True, **kwargs
-    ) -> Database:
+    def __call__(self, db_conf: str | dict, thread_count: int | None = 1, shared: bool = True, **kwargs) -> Database:
         """Connect to a database using the given database configuration.
 
         Configuration can be given either as a URI string, or as a dict of {option: value}.
@@ -292,7 +289,7 @@ class Connect:
             self.conn_cache[cache_key] = conn
         return conn
 
-    def __make_cache_key(self, db_conf: Union[str, dict]) -> Hashable:
+    def __make_cache_key(self, db_conf: str | dict) -> Hashable:
         if isinstance(db_conf, dict):
             return tuple(db_conf.items())
         return db_conf
