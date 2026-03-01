@@ -23,7 +23,6 @@ from data_diff.parse_time import parse_time_before, UNITS_STR, ParseError
 from data_diff.queries.api import current_timestamp
 from data_diff.schema import RawColumnInfo, create_schema
 from data_diff.table_segment import TableSegment
-from data_diff.tracking import disable_tracking, set_entrypoint_name
 from data_diff.utils import eval_name_template, remove_password_from_url, safezip, match_like, LogStatusHandler
 from data_diff.version import __version__
 
@@ -31,8 +30,6 @@ COLOR_SCHEME = {
     "+": "green",
     "-": "red",
 }
-
-set_entrypoint_name(os.getenv("DATAFOLD_TRIGGERED_BY", "CLI"))
 
 
 def _get_log_handlers(is_dbt: Optional[bool] = False) -> Dict[str, logging.Handler]:
@@ -172,7 +169,6 @@ click.Context.formatter_class = MyHelpFormatter
 @click.option("-v", "--verbose", is_flag=True, help="Print extra info")
 @click.option("--version", is_flag=True, help="Print version info and exit")
 @click.option("-i", "--interactive", is_flag=True, help="Confirm queries, implies --debug")
-@click.option("--no-tracking", is_flag=True, help="data-diff sends home anonymous usage data. Use this to disable it.")
 @click.option(
     "--case-sensitive",
     is_flag=True,
@@ -234,11 +230,6 @@ click.Context.formatter_class = MyHelpFormatter
     help="Run a diff using your local dbt project. Expects to be run from a dbt project folder by default.",
 )
 @click.option(
-    "--cloud",
-    is_flag=True,
-    help="Add this flag along with --dbt to run a diff using your local dbt project on Datafold cloud. Expects an api key on env var DATAFOLD_API_KEY.",
-)
-@click.option(
     "--dbt-profiles-dir",
     envvar="DBT_PROFILES_DIR",
     default=None,
@@ -293,9 +284,6 @@ def main(conf, run, **kw) -> None:
     if conf:
         kw = apply_config_from_file(conf, run, kw)
 
-    if kw["no_tracking"]:
-        disable_tracking()
-
     if kw.get("interactive"):
         kw["debug"] = True
 
@@ -328,7 +316,6 @@ def main(conf, run, **kw) -> None:
                 log_status_handler=log_handlers.get("log_status_handler"),
                 profiles_dir_override=profiles_dir_override,
                 project_dir_override=project_dir_override,
-                is_cloud=kw["cloud"],
                 dbt_selection=kw["select"],
                 json_output=kw["json_output"],
                 state=state,
@@ -502,7 +489,6 @@ def _data_diff(
     verbose,
     version,
     interactive,
-    no_tracking,
     threads,
     case_sensitive,
     json_output,
@@ -513,7 +499,6 @@ def _data_diff(
     table_write_limit,
     materialize_to_table,
     dbt,
-    cloud,
     dbt_profiles_dir,
     dbt_project_dir,
     prod_database,

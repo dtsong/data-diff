@@ -262,7 +262,7 @@ class DbtParser:
             )
         if dbt_version >= parse_version(UPPER_DBT_V):
             logger.warning(
-                f"{dbt_version} is a recent version of dbt and may not be fully tested with data-diff! \nPlease report any issues to https://github.com/datafold/data-diff/issues"
+                f"{dbt_version} is a recent version of dbt and may not be fully tested with data-diff! \nPlease report any issues to https://github.com/data-diff-community/data-diff/issues"
             )
 
         success_models = [x.unique_id for x in run_results_validated.results if x.status == x.Status.success]

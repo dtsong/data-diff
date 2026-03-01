@@ -12,7 +12,7 @@ from tests.test_diff_tables import test_each_database
 def run_datadiff_cli(*args):
     try:
         p = subprocess.Popen(
-            [sys.executable, "-m", "data_diff", "--no-tracking"] + list(args),
+            [sys.executable, "-m", "data_diff"] + list(args),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )

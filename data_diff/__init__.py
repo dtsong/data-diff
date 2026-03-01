@@ -2,7 +2,6 @@ from typing import Sequence, Tuple, Iterator, Optional, Union
 
 from data_diff.abcs.database_types import DbTime, DbPath
 from data_diff.databases import Database
-from data_diff.tracking import disable_tracking
 from data_diff.databases._connect import connect
 from data_diff.diff_tables import Algorithm
 from data_diff.hashdiff_tables import HashDiffer, DEFAULT_BISECTION_THRESHOLD, DEFAULT_BISECTION_FACTOR

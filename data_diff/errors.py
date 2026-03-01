@@ -46,26 +46,6 @@ class DataDiffCustomSchemaNoConfigError(Exception):
     "Raised when a model has a custom schema, but there is no prod_custom_schema config. (And not using --state)."
 
 
-class DataDiffNoAPIKeyError(Exception):
-    "Raised when using --cloud but no API key is present in the DATAFOLD_API_KEY env var or keyring"
-
-
-class DataDiffNoDatasourceIdError(Exception):
-    "Raised when using --cloud but no datasource_id was found in dbt_project.yml"
-
-
-class DataDiffDatasourceIdNotFoundError(Exception):
-    "Raised when using --cloud but the datasource_id is not found for a particular org."
-
-
-class DataDiffCloudDiffFailed(Exception):
-    "Raised when using --cloud and the remote diff fails."
-
-
-class DataDiffCloudDiffTimedOut(Exception):
-    "Raised when using --cloud and the diff did not return finish before the timeout value."
-
-
 class DataDiffSimpleSelectNotFound(Exception):
     "Raised when using --select on dbt < 1.5 and a model node is not found in the manifest."
 

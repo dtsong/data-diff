@@ -14,12 +14,9 @@ from data_diff.queries.api import table
 from data_diff.databases.base import Database
 
 from data_diff import databases as db
-from data_diff import tracking
 from data_diff import connect
 from data_diff.table_segment import TableSegment
 from data_diff.query_utils import drop_table
-
-tracking.disable_tracking()
 
 # We write 'or None' because Github sometimes creates empty env vars for secrets
 TEST_MYSQL_CONN_STRING: str = "mysql://mysql:Password1@localhost/mysql"

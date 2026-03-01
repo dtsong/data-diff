@@ -1,41 +1,20 @@
 from contextlib import nullcontext
 import json
 import os
-import re
-import time
 from typing import List, Optional, Dict, Tuple, Union
-import keyring
 import pydantic
 import rich
-from rich.prompt import Prompt
-from rich.markdown import Markdown
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from data_diff.errors import (
     DataDiffCustomSchemaNoConfigError,
     DataDiffDbtProjectVarsNotFoundError,
-    DataDiffNoAPIKeyError,
-    DataDiffNoDatasourceIdError,
 )
 
 from data_diff import connect_to_table, diff_tables, Algorithm
-from data_diff.cloud import DatafoldAPI, TCloudApiDataDiff, TCloudApiOrgMeta
 from data_diff.dbt_parser import DbtParser, TDatadiffConfig
 from data_diff.diff_tables import DiffResultWrapper
 from data_diff.format import jsonify, jsonify_error
-from data_diff.tracking import (
-    bool_ask_for_email,
-    bool_notify_about_extension,
-    create_email_signup_event_json,
-    set_entrypoint_name,
-    set_dbt_user_id,
-    set_dbt_version,
-    set_dbt_project_id,
-    create_end_event_json,
-    create_start_event_json,
-    send_event_json,
-    is_tracking_enabled,
-)
 from data_diff.utils import (
     dbt_diff_string_template,
     getLogger,
@@ -43,16 +22,11 @@ from data_diff.utils import (
     columns_removed_template,
     no_differences_template,
     columns_type_changed_template,
-    run_as_daemon,
-    truncate_error,
     print_version_info,
     LogStatusHandler,
 )
 
 logger = getLogger(__name__)
-CLOUD_DOC_URL = "https://docs.datafold.com/development_testing/cloud"
-DATAFOLD_TRIAL_URL = "https://app.datafold.com/org-signup"
-DATAFOLD_INSTRUCTIONS_URL = "https://docs.datafold.com/development_testing/datafold_cloud"
 
 
 class TDiffVars(pydantic.BaseModel):
@@ -71,7 +45,6 @@ class TDiffVars(pydantic.BaseModel):
 def dbt_diff(
     profiles_dir_override: Optional[str] = None,
     project_dir_override: Optional[str] = None,
-    is_cloud: bool = False,
     dbt_selection: Optional[str] = None,
     json_output: bool = False,
     state: Optional[str] = None,
@@ -83,36 +56,17 @@ def dbt_diff(
     production_schema_flag: Optional[str] = None,
 ) -> None:
     print_version_info()
-    set_entrypoint_name(os.getenv("DATAFOLD_TRIGGERED_BY", "CLI-dbt"))
     dbt_parser = DbtParser(profiles_dir_override, project_dir_override, state)
     models = dbt_parser.get_models(dbt_selection)
     config = dbt_parser.get_datadiff_config()
-    _initialize_events(dbt_parser.dbt_user_id, dbt_parser.dbt_version, dbt_parser.dbt_project_id)
 
     if not state and not (config.prod_database or config.prod_schema):
-        doc_url = "https://docs.datafold.com/development_testing/open_source#configure-your-dbt-project"
+        doc_url = "https://github.com/data-diff-community/data-diff#configure-your-dbt-project"
         raise DataDiffDbtProjectVarsNotFoundError(
             f"""vars: data_diff: section not found in dbt_project.yml.\n\nTo solve this, please configure your dbt project: \n{doc_url}\n\nOr specify a production manifest using the `--state` flag."""
         )
 
-    if is_cloud:
-        api = _initialize_api()
-        # exit so the user can set the key
-        if not api:
-            return
-        org_meta = api.get_org_meta()
-        if config.datasource_id is None:
-            rich.print("[red]Data source ID not found in dbt_project.yml")
-            raise DataDiffNoDatasourceIdError(
-                f"Datasource ID not found. Please include it as a dbt variable in the dbt_project.yml. \nInstructions: {CLOUD_DOC_URL}\n\nvars:\n data_diff:\n   datasource_id: 1234"
-            )
-
-        data_source = api.get_data_source(config.datasource_id)
-        dbt_parser.set_casing_policy_for(connection_type=data_source.type)
-        rich.print("[green][bold]\nDiffs in progress...[/][/]\n")
-
-    else:
-        dbt_parser.set_connection()
+    dbt_parser.set_connection()
 
     futures = {}
 
@@ -145,12 +99,7 @@ def dbt_diff(
                 continue
 
             if diff_vars.primary_keys:
-                if is_cloud:
-                    future = executor.submit(
-                        _cloud_diff, diff_vars, config.datasource_id, api, org_meta, log_status_handler
-                    )
-                else:
-                    future = executor.submit(_local_diff, diff_vars, json_output, log_status_handler)
+                future = executor.submit(_local_diff, diff_vars, json_output, log_status_handler)
                 futures[future] = model
             else:
                 if json_output:
@@ -174,11 +123,9 @@ def dbt_diff(
     for future in as_completed(futures):
         model = futures[future]
         try:
-            future.result()  # if error occurred, it will be raised here
+            future.result()
         except Exception as e:
             logger.error(f"An error occurred during the execution of a diff task: {model.unique_id} - {e}")
-
-    _extension_notification()
 
 
 def _get_diff_vars(
@@ -250,7 +197,7 @@ def _get_prod_path_from_config(config, model, dev_database, dev_schema) -> Tuple
             if not config.prod_custom_schema:
                 raise DataDiffCustomSchemaNoConfigError(
                     f"Found a custom schema on model {model.name}, but no value for\nvars:\n  data_diff:\n    prod_custom_schema:\nPlease set a value or utilize the `--state` flag!\n\n"
-                    + "For more details see: https://docs.datafold.com/development_testing/open_source"
+                    + "For more details see: https://github.com/data-diff-community/data-diff"
                 )
             prod_schema = config.prod_custom_schema.replace("<custom_schema>", custom_schema)
             # no custom schema, use the default
@@ -399,206 +346,5 @@ def _local_diff(
         log_status_handler.diff_finished(diff_vars.dev_path[-1])
 
 
-def _initialize_api() -> Optional[DatafoldAPI]:
-    datafold_host = os.environ.get("DATAFOLD_HOST")
-    if datafold_host is None:
-        datafold_host = "https://app.datafold.com"
-    datafold_host = datafold_host.rstrip("/")
-    rich.print(f"Cloud datafold host: {datafold_host}")
-
-    api_key = os.environ.get("DATAFOLD_API_KEY")
-    if not api_key:
-        rich.print("[red]API key not found. Getting from the keyring service")
-        api_key = keyring.get_password("data-diff", "DATAFOLD_API_KEY")
-        if not api_key:
-            raise DataDiffNoAPIKeyError(
-                f"API key not found. Please follow the steps at {CLOUD_DOC_URL} to use the --cloud flag."
-            )
-    rich.print("Saving the API key to the system keyring service")
-    try:
-        keyring.set_password("data-diff", "DATAFOLD_API_KEY", api_key)
-    except Exception as e:
-        rich.print(f"[red]Failed when saving the API key to the system keyring service. Reason: {e}")
-
-    return DatafoldAPI(api_key=api_key, host=datafold_host)
-
-
-def _cloud_diff(
-    diff_vars: TDiffVars,
-    datasource_id: int,
-    api: DatafoldAPI,
-    org_meta: TCloudApiOrgMeta,
-    log_status_handler: Optional[LogStatusHandler] = None,
-) -> None:
-    if log_status_handler:
-        log_status_handler.diff_started(diff_vars.dev_path[-1])
-    diff_output_str = _diff_output_base(".".join(diff_vars.dev_path), ".".join(diff_vars.prod_path))
-    payload = TCloudApiDataDiff(
-        data_source1_id=datasource_id,
-        data_source2_id=datasource_id,
-        table1=diff_vars.prod_path,
-        table2=diff_vars.dev_path,
-        pk_columns=diff_vars.primary_keys,
-        filter1=diff_vars.where_filter,
-        filter2=diff_vars.where_filter,
-        include_columns=diff_vars.include_columns,
-        exclude_columns=diff_vars.exclude_columns,
-    )
-
-    if is_tracking_enabled():
-        event_json = create_start_event_json({"is_cloud": True, "datasource_id": datasource_id})
-        run_as_daemon(send_event_json, event_json)
-
-    start = time.monotonic()
-    error = None
-    diff_id = None
-    diff_url = None
-    try:
-        diff_id = api.create_data_diff(payload=payload)
-        diff_url = f"{api.host}/datadiffs/{diff_id}/overview"
-        rich.print(f"{diff_vars.dev_path[-1]}: {diff_url}")
-
-        if diff_id is None:
-            raise Exception(f"Api response did not contain a diff_id")
-
-        diff_results = api.poll_data_diff_results(diff_id)
-
-        rows_added_count = diff_results.pks.exclusives[1]
-        rows_removed_count = diff_results.pks.exclusives[0]
-
-        rows_updated = diff_results.values.rows_with_differences
-        total_rows_table1 = diff_results.pks.total_rows[0]
-        total_rows_table2 = diff_results.pks.total_rows[1]
-        total_rows_diff = total_rows_table2 - total_rows_table1
-
-        rows_unchanged = int(total_rows_table1) - int(rows_updated) - int(rows_removed_count)
-        diff_percent_list = {
-            x.column_name: f"{str(round(100.00 - x.match, 2))}%"
-            for x in diff_results.values.columns_diff_stats
-            if x.match != 100.0
-        }
-        columns_added = set(diff_results.schema_.exclusive_columns[1])
-        columns_removed = set(diff_results.schema_.exclusive_columns[0])
-        column_type_changes = diff_results.schema_.column_type_differs
-
-        diff_output_str += f"Primary Keys: {diff_vars.primary_keys} \n"
-        if diff_vars.where_filter:
-            diff_output_str += f"Where Filter: '{str(diff_vars.where_filter)}' \n"
-
-        if diff_vars.include_columns:
-            diff_output_str += f"Included Columns: {diff_vars.include_columns} \n"
-
-        if diff_vars.exclude_columns:
-            diff_output_str += f"Excluded Columns: {diff_vars.exclude_columns} \n"
-
-        if columns_removed:
-            diff_output_str += columns_removed_template(columns_removed)
-
-        if columns_added:
-            diff_output_str += columns_added_template(columns_added)
-
-        if column_type_changes:
-            diff_output_str += columns_type_changed_template(column_type_changes)
-
-        deps_impacts = {
-            key: len(value) + sum(len(item.get("BiHtSync", [])) for item in value) if key == "hightouch" else len(value)
-            for key, value in diff_results.deps.deps.items()
-        }
-
-        if any([rows_added_count, rows_removed_count, rows_updated]):
-            diff_output = dbt_diff_string_template(
-                total_rows_table1=total_rows_table1,
-                total_rows_table2=total_rows_table2,
-                total_rows_diff=total_rows_diff,
-                rows_added=rows_added_count,
-                rows_removed=rows_removed_count,
-                rows_updated=rows_updated,
-                rows_unchanged=str(rows_unchanged),
-                deps_impacts=deps_impacts,
-                is_cloud=True,
-                extra_info_dict=diff_percent_list,
-                extra_info_str="Value Changed:",
-            )
-            diff_output_str += f"\n{diff_url}\n {diff_output} \n"
-            rich.print(diff_output_str)
-        else:
-            diff_output_str += f"\n{diff_url}\n{no_differences_template()}\n"
-            rich.print(diff_output_str)
-
-        if log_status_handler:
-            log_status_handler.diff_finished(diff_vars.dev_path[-1])
-    except BaseException as ex:  # Catch KeyboardInterrupt too
-        error = ex
-    finally:
-        # we don't currently have much of this information
-        # but I imagine a future iteration of this _cloud method
-        # will poll for results
-        if is_tracking_enabled():
-            err_message = truncate_error(repr(error))
-            event_json = create_end_event_json(
-                is_success=error is None,
-                runtime_seconds=time.monotonic() - start,
-                data_source_1_type="",
-                data_source_2_type="",
-                table1_count=0,
-                table2_count=0,
-                diff_count=0,
-                error=err_message,
-                diff_id=diff_id,
-                is_cloud=True,
-                org_id=org_meta.org_id,
-                org_name=org_meta.org_name,
-                user_id=org_meta.user_id,
-            )
-            send_event_json(event_json)
-
-        if error:
-            rich.print(diff_output_str)
-            if diff_id:
-                diff_url = f"{api.host}/datadiffs/{diff_id}/overview"
-                rich.print(f"{diff_url} \n")
-            logger.error(error)
-
-
 def _diff_output_base(dev_path: str, prod_path: str) -> str:
     return f"\n[blue]{prod_path}[/] <> [green]{dev_path}[/] \n"
-
-
-def _initialize_events(dbt_user_id: Optional[str], dbt_version: Optional[str], dbt_project_id: Optional[str]) -> None:
-    set_dbt_user_id(dbt_user_id)
-    set_dbt_version(dbt_version)
-    set_dbt_project_id(dbt_project_id)
-    _email_signup()
-
-
-def _email_signup() -> None:
-    email_regex = r"^[\w\.\+-]+@[\w\.-]+\.\w+$"
-    prompt = "\nWould you like to be notified when a new data-diff version is available?\n\nEnter email or leave blank to opt out (we'll only ask once).\n"
-
-    if bool_ask_for_email():
-        while True:
-            email_input = Prompt.ask(
-                prompt=prompt,
-                default="",
-                show_default=False,
-            )
-            email = email_input.strip()
-
-            if email == "" or re.match(email_regex, email):
-                break
-
-            prompt = ""
-            rich.print("[red]Invalid email. Please enter a valid email or leave it blank to opt out.[/]")
-
-        if email:
-            event_json = create_email_signup_event_json(email)
-            run_as_daemon(send_event_json, event_json)
-
-
-def _extension_notification() -> None:
-    if bool_notify_about_extension():
-        message = "\n\nHaving a good time diffing?\n\nMake sure to check out the free Datafold Cloud Trial for an evolved experience:\n\n- value-level diffs\n- column-level lineage\n"
-        rich.print(message)
-        rich.print(Markdown(f"[Sign Up Here]({DATAFOLD_TRIAL_URL})"))
-        rich.print("")
-        rich.print(Markdown(f"[Follow the instructions to get started]({DATAFOLD_INSTRUCTIONS_URL})"))

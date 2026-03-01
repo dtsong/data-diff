@@ -1,7 +1,6 @@
 """Provides classes for performing a table diff"""
 
 import threading
-import time
 from abc import ABC, abstractmethod
 from enum import Enum
 from contextlib import contextmanager
@@ -13,10 +12,9 @@ import attrs
 
 from data_diff.errors import DataDiffMismatchingKeyTypesError
 from data_diff.info_tree import InfoTree, SegmentInfo
-from data_diff.utils import dbt_diff_string_template, run_as_daemon, safezip, getLogger, truncate_error, Vector
+from data_diff.utils import dbt_diff_string_template, safezip, getLogger, Vector
 from data_diff.thread_utils import ThreadedYielder
 from data_diff.table_segment import TableSegment, create_mesh_from_points
-from data_diff.tracking import create_end_event_json, create_start_event_json, send_event_json, is_tracking_enabled
 from data_diff.abcs.database_types import IKey
 
 logger = getLogger(__name__)
@@ -217,19 +215,10 @@ class TableDiffer(ThreadBase, ABC):
         return DiffResultWrapper(self._diff_tables_wrapper(table1, table2, info_tree), info_tree, self.stats)
 
     def _diff_tables_wrapper(self, table1: TableSegment, table2: TableSegment, info_tree: InfoTree) -> DiffResult:
-        if is_tracking_enabled():
-            options = attrs.asdict(self, recurse=False)
-            # not a useful event attribute
-            options.pop("_ignored_columns_lock")
-            options["differ_name"] = type(self).__name__
-            event_json = create_start_event_json(options)
-            run_as_daemon(send_event_json, event_json)
-
         if table1.database.dialect.PREVENT_OVERFLOW_WHEN_CONCAT or table2.database.dialect.PREVENT_OVERFLOW_WHEN_CONCAT:
             table1.database.dialect.enable_preventing_type_overflow()
             table2.database.dialect.enable_preventing_type_overflow()
 
-        start = time.monotonic()
         error = None
         try:
             # Query and validate schema
@@ -242,25 +231,6 @@ class TableDiffer(ThreadBase, ABC):
             error = e
         finally:
             info_tree.aggregate_info()
-
-            if is_tracking_enabled():
-                runtime = time.monotonic() - start
-                rowcounts = info_tree.info.rowcounts
-                table1_count = rowcounts[1] if rowcounts else None
-                table2_count = rowcounts[2] if rowcounts else None
-                diff_count = info_tree.info.diff_count
-                err_message = truncate_error(repr(error))
-                event_json = create_end_event_json(
-                    error is None,
-                    runtime,
-                    table1.database.name,
-                    table2.database.name,
-                    table1_count,
-                    table2_count,
-                    diff_count,
-                    err_message,
-                )
-                send_event_json(event_json)
 
             if error:
                 raise error
@@ -284,7 +254,8 @@ class TableDiffer(ThreadBase, ABC):
         level=0,
         segment_index=None,
         segment_count=None,
-    ): ...
+    ):
+        ...
 
     def _bisect_and_diff_tables(self, table1: TableSegment, table2: TableSegment, info_tree):
         if len(table1.key_columns) != len(table2.key_columns):
