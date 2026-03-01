@@ -1,30 +1,34 @@
 name: formatter
 on:
-    pull_request:
-        branches: [ master ]
-    
-    workflow_dispatch:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  linter_name:
+  ruff:
     name: runner / ruff
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@v3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         if: github.event_name == 'pull_request'
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: Checkout Repo 
-        uses: actions/checkout@v3
+      - name: Checkout Repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         if: github.event_name == 'workflow_dispatch'
 
       # This is used for forked PRs as write permissions are required to format files
       - name: Run and commit changes with `ruff format .` locally on your forked branch to fix errors if they appear
         if: ${{ github.event.pull_request.head.repo.fork == true }}
-        uses: chartboost/ruff-action@v1
+        uses: chartboost/ruff-action@e18ae971ccee1b2d7bbef113930f00c670b78da4 # v1
         id: ruff_formatter_suggestions
         with:
           args: format --diff
@@ -32,7 +36,7 @@ jobs:
       # This only runs if the PR is NOT from a forked repo
       - name: Format files using ruff
         if: ${{ github.event.pull_request.head.repo.fork == false }}
-        uses: chartboost/ruff-action@v1
+        uses: chartboost/ruff-action@e18ae971ccee1b2d7bbef113930f00c670b78da4 # v1
         id: ruff_formatter
         with:
           args: format
@@ -40,6 +44,6 @@ jobs:
       # This only runs if the PR is NOT from a forked repo
       - name: Auto commit ruff formatting
         if: ${{ github.event.pull_request.head.repo.fork == false }}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5
         with:
-          commit_message: 'style fixes by ruff'
+          commit_message: "style fixes by ruff"
