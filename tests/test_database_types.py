@@ -564,7 +564,7 @@ def sanitize(name):
 
 # Pass --verbose to test run to get a nice output.
 def expand_params(testcase_func, param_num, param):
-    source_db, target_db, source_type, target_type, type_category = param.args
+    source_db, target_db, source_type, target_type, _type_category = param.args
     source_db_type = source_db.__name__
     target_db_type = target_db.__name__
 
@@ -622,7 +622,7 @@ def _insert_to_table(conn, table_path, values, coltype):
                 i,
                 Code(
                     "'{}'".format(
-                        (json.dumps(sample) if isinstance(sample, (dict, list)) else sample).replace("'", "''")
+                        (json.dumps(sample) if isinstance(sample, dict | list) else sample).replace("'", "''")
                     )
                 ),
             )

@@ -27,7 +27,6 @@ ignore = [
     "SIM105",   # use contextlib.suppress — style preference
     "SIM108",   # ternary — often less readable
     "UP031",    # percent format — too noisy, low value
-    "UP038",    # isinstance(x, (A, B)) -> isinstance(x, A | B) — unsafe fix, lower readability
 ]
 
 [lint.isort]
