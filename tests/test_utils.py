@@ -1,6 +1,8 @@
 import re
 
-from data_diff.__main__ import _remove_passwords_in_dict
+import pytest
+
+from data_diff.__main__ import _remove_passwords_in_dict, diff_schemas
 from data_diff.utils import (
     columns_added_template,
     columns_removed_template,
@@ -217,3 +219,42 @@ def test_columns_type_changed_template():
     output = columns_type_changed_template({"column1", "column2"})
     assert "Type changed [2]: [green]" in output
     assert _extract_columns_set(output) == {"column1", "column2"}
+
+
+# --- diff_schemas ---
+
+
+def test_diff_schemas_missing_column_table2_error_references_table2():
+    """Regression test: error message for missing column in table 2 should reference table 2's columns."""
+    schema1 = {"id": ("id", "int", None, None, None), "name": ("name", "str", None, None, None)}
+    schema2 = {"id": ("id", "int", None, None, None), "age": ("age", "int", None, None, None)}
+
+    with pytest.raises(ValueError, match=r"not found in table 2.*'table_b'.*age"):
+        diff_schemas("table_a", "table_b", schema1, schema2, ["id", "name"])
+
+
+def test_diff_schemas_missing_column_table1_error_references_table1():
+    schema1 = {"id": ("id", "int", None, None, None)}
+    schema2 = {"id": ("id", "int", None, None, None), "name": ("name", "str", None, None, None)}
+
+    with pytest.raises(ValueError, match=r"not found in table 1.*'table_a'"):
+        diff_schemas("table_a", "table_b", schema1, schema2, ["id", "name"])
+
+
+# --- dbt_diff_string_template with None extra_info_dict ---
+
+
+def test_dbt_diff_string_template_none_extra_info():
+    """Regression test: dbt_diff_string_template should not crash when extra_info_dict is None."""
+    output = dbt_diff_string_template(
+        total_rows_table1=10,
+        total_rows_table2=10,
+        total_rows_diff=0,
+        rows_added=0,
+        rows_removed=0,
+        rows_updated=0,
+        rows_unchanged=10,
+        extra_info_dict=None,
+        extra_info_str="",
+    )
+    assert "Total" in output

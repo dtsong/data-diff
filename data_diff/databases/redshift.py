@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterable
 from typing import Any, ClassVar
 
@@ -21,6 +22,8 @@ from data_diff.databases.postgresql import (
     PostgresqlDialect,
 )
 from data_diff.schema import RawColumnInfo
+
+logger = logging.getLogger(__name__)
 
 
 @attrs.define(frozen=False)
@@ -198,13 +201,16 @@ class Redshift(PostgreSQL):
     def query_table_schema(self, path: DbPath) -> dict[str, RawColumnInfo]:
         try:
             return super().query_table_schema(path)
-        except RuntimeError:
+        except RuntimeError as e:
+            logger.debug(f"Standard schema query failed for {path}, trying external table: {e}")
             try:
                 return self.query_external_table_schema(path)
-            except RuntimeError:
+            except RuntimeError as e:
+                logger.debug(f"External table schema query failed for {path}, trying pg_get_cols: {e}")
                 try:
                     return self.query_pg_get_cols(path)
-                except Exception:
+                except RuntimeError as e:
+                    logger.debug(f"pg_get_cols failed for {path}, trying svv_columns: {e}")
                     return self.query_svv_columns(path)
 
     def _normalize_table_path(self, path: DbPath) -> DbPath:

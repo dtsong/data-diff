@@ -127,9 +127,9 @@ class Connect:
 
         Parameters:
             db_uri (str): The URI for the database to connect
-            thread_count (int, optional): Size of the threadpool. Ignored by cloud databases. (default: 1)
+            thread_count (int, optional): Size of the threadpool. Ignored by databases that don't use a thread pool (e.g. BigQuery, Snowflake, DuckDB). (default: 1)
 
-        Note: For non-cloud databases, a low thread-pool size may be a performance bottleneck.
+        Note: For thread-pooled databases, a low thread-pool size may be a performance bottleneck.
 
         Supported schemes:
         - postgresql
@@ -245,12 +245,12 @@ class Connect:
 
         Parameters:
             db_conf (str | dict): The configuration for the database to connect. URI or dict.
-            thread_count (int, optional): Size of the threadpool. Ignored by cloud databases. (default: 1)
+            thread_count (int, optional): Size of the threadpool. Ignored by databases that don't use a thread pool (e.g. BigQuery, Snowflake, DuckDB). (default: 1)
             shared (bool): Whether to cache and return the same connection for the same db_conf. (default: True)
             bigquery_credentials (google.oauth2.credentials.Credentials): Custom Google oAuth2 credential for BigQuery.
             (default: None)
 
-        Note: For non-cloud databases, a low thread-pool size may be a performance bottleneck.
+        Note: For thread-pooled databases, a low thread-pool size may be a performance bottleneck.
 
         Supported drivers:
         - postgresql

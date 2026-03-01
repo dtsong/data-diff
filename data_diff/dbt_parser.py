@@ -98,7 +98,6 @@ class TDatadiffConfig(BaseModel):
     prod_database: str | None = None
     prod_schema: str | None = None
     prod_custom_schema: str | None = None
-    datasource_id: int | None = None
 
 
 @attrs.define(frozen=False, init=False)
@@ -154,12 +153,10 @@ class DbtParser:
         prod_database = data_diff_vars.get("prod_database")
         prod_schema = data_diff_vars.get("prod_schema")
         prod_custom_schema = data_diff_vars.get("prod_custom_schema")
-        datasource_id = data_diff_vars.get("datasource_id")
         config = TDatadiffConfig(
             prod_database=prod_database,
             prod_schema=prod_schema,
             prod_custom_schema=prod_custom_schema,
-            datasource_id=datasource_id,
         )
         logger.info(f"config: {config}")
         return config

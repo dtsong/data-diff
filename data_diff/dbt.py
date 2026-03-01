@@ -48,7 +48,7 @@ def dbt_diff(
     log_status_handler: LogStatusHandler | None = None,
     where_flag: str | None = None,
     stats_flag: bool = False,
-    columns_flag: tuple[str] | None = None,
+    columns_flag: tuple[str, ...] | None = None,
     production_database_flag: str | None = None,
     production_schema_flag: str | None = None,
 ) -> None:
@@ -58,7 +58,7 @@ def dbt_diff(
     config = dbt_parser.get_datadiff_config()
 
     if not state and not (config.prod_database or config.prod_schema):
-        doc_url = "https://github.com/datafold/data-diff#configure-your-dbt-project"
+        doc_url = "https://github.com/datafold/data-diff"
         raise DataDiffDbtProjectVarsNotFoundError(
             f"""vars: data_diff: section not found in dbt_project.yml.\n\nTo solve this, please configure your dbt project: \n{doc_url}\n\nOr specify a production manifest using the `--state` flag."""
         )
@@ -137,7 +137,7 @@ def _get_diff_vars(
     model,
     where_flag: str | None = None,
     stats_flag: bool = False,
-    columns_flag: tuple[str] | None = None,
+    columns_flag: tuple[str, ...] | None = None,
     production_database_flag: str | None = None,
     production_schema_flag: str | None = None,
 ) -> TDiffVars:
@@ -241,7 +241,7 @@ def _local_diff(
         logger.warning(f"Could not fetch schema for {prod_qualified_str}: {type(ex).__name__}: {ex}")
         diff_output_str += f"[red]Could not access prod table: {type(ex).__name__}[/] \n"
         rich.print(diff_output_str)
-        return
+        raise
 
     try:
         table2_columns = table2.get_schema()
@@ -249,7 +249,7 @@ def _local_diff(
         logger.warning(f"Could not fetch schema for {dev_qualified_str}: {type(ex).__name__}: {ex}")
         diff_output_str += f"[red]Could not access dev table: {type(ex).__name__}[/] \n"
         rich.print(diff_output_str)
-        return
+        raise
 
     table1_column_names = set(table1_columns.keys())
     table2_column_names = set(table2_columns.keys())

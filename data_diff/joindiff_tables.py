@@ -124,7 +124,7 @@ class JoinDiffer(TableDiffer):
                                    There may be many pools, so number of actual threads can be a lot higher.
         validate_unique_key (bool): Enable/disable validating that the key columns are unique. (default: True)
                                     If there are no UNIQUE constraints in the schema, it is done in a single query,
-                                    and can't be threaded, so it's very slow on non-cloud dbs.
+                                    and can't be threaded, so it's very slow on large tables.
         sample_exclusive_rows (bool): Enable/disable sampling of exclusive rows. (default: False)
                                       Creates a temporary table.
         materialize_to_table (DbPath, optional): Path of new table to write diff results to. Disabled if not provided.
@@ -155,7 +155,7 @@ class JoinDiffer(TableDiffer):
             drop_table(db, self.materialize_to_table)
 
         with self._run_in_background(*bg_funcs):
-            if isinstance(db, (Snowflake, BigQuery, DuckDB)):
+            if isinstance(db, Snowflake | BigQuery | DuckDB):
                 # Don't segment the table; let the database handling parallelization
                 yield from self._diff_segments(None, table1, table2, info_tree, None)
             else:
@@ -364,7 +364,7 @@ class JoinDiffer(TableDiffer):
         table1: TableSegment | None = None,
         table2: TableSegment | None = None,
     ):
-        if isinstance(db, (Oracle, MsSQL)):
+        if isinstance(db, Oracle | MsSQL):
             exclusive_rows_query = diff_rows.where((this.is_exclusive_a == 1) | (this.is_exclusive_b == 1))
         else:
             exclusive_rows_query = diff_rows.where(this.is_exclusive_a | this.is_exclusive_b)
