@@ -26,7 +26,8 @@ TIME_UNITS = dict(
 )
 
 EXTRAPOLATED = {"months": (30, "days"), "years": (365, "days")}
-assert set(EXTRAPOLATED) <= set(TIME_UNITS)
+if not set(EXTRAPOLATED) <= set(TIME_UNITS):
+    raise RuntimeError("EXTRAPOLATED keys must be a subset of TIME_UNITS keys.")
 
 TIME_RE = re.compile(r"(\d+)([a-z]+)")
 

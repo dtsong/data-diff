@@ -21,18 +21,27 @@ RECOMMENDED_CHECKSUM_DURATION = 20
 
 
 def split_key_space(min_key: DbKey, max_key: DbKey, count: int) -> List[DbKey]:
-    assert min_key < max_key
+    if not (min_key < max_key):
+        raise ValueError(f"min_key must be strictly less than max_key. Got min_key={min_key!r}, max_key={max_key!r}.")
 
     if max_key - min_key <= count:
         count = 1
 
     if isinstance(min_key, ArithString):
-        assert type(min_key) is type(max_key)
+        if type(min_key) is not type(max_key):
+            raise TypeError(
+                f"min_key and max_key must be the same ArithString subtype. "
+                f"Got {type(min_key).__name__!r} and {type(max_key).__name__!r}."
+            )
         checkpoints = min_key.range(max_key, count)
     else:
         checkpoints = split_space(min_key, max_key, count)
 
-    assert all(min_key < x < max_key for x in checkpoints)
+    if not all(min_key < x < max_key for x in checkpoints):
+        raise RuntimeError(
+            f"Generated checkpoints fall outside (min_key, max_key) bounds. "
+            f"min_key={min_key!r}, max_key={max_key!r}, checkpoints={checkpoints!r}."
+        )
     return [min_key] + checkpoints + [max_key]
 
 
@@ -70,18 +79,21 @@ def create_mesh_from_points(*values_per_dim: list) -> List[Tuple[Vector, Vector]
                 [('b', 2, 'X'), ('c', 3, 'Y')]
             ]
     """
-    assert all(len(v) >= 2 for v in values_per_dim), values_per_dim
+    if not all(len(v) >= 2 for v in values_per_dim):
+        raise ValueError(f"Each dimension must have at least 2 values. Got: {values_per_dim!r}.")
 
     # Create tuples of (v1, v2) for each pair of adjacent values
     ranges = [list(zip(values[:-1], values[1:])) for values in values_per_dim]
 
-    assert all(a <= b for r in ranges for a, b in r)
+    if not all(a <= b for r in ranges for a, b in r):
+        raise ValueError("Values within each dimension must be in non-decreasing order.")
 
     # Create a product of all the ranges
     res = [tuple(Vector(a) for a in safezip(*r)) for r in product(*ranges)]
 
     expected_len = int_product(len(v) - 1 for v in values_per_dim)
-    assert len(res) == expected_len, (len(res), expected_len)
+    if len(res) != expected_len:
+        raise RuntimeError(f"Mesh result length mismatch: got {len(res)}, expected {expected_len}.")
     return res
 
 
@@ -189,7 +201,8 @@ class TableSegment:
     def choose_checkpoints(self, count: int) -> List[List[DbKey]]:
         "Suggests a bunch of evenly-spaced checkpoints to split by, including start, end."
 
-        assert self.is_bounded
+        if not self.is_bounded:
+            raise RuntimeError("Cannot choose checkpoints on an unbounded segment. min_key and max_key must be set.")
 
         # Take Nth root of count, to approximate the appropriate box size
         count = int(count ** (1 / len(self.key_columns))) or 1
@@ -207,12 +220,22 @@ class TableSegment:
 
     def new_key_bounds(self, min_key: Vector, max_key: Vector, *, key_types: Optional[Sequence[IKey]] = None) -> Self:
         if self.min_key is not None:
-            assert self.min_key <= min_key, (self.min_key, min_key)
-            assert self.min_key < max_key
+            if not (self.min_key <= min_key):
+                raise ValueError(
+                    f"New min_key={min_key!r} is less than the segment's existing min_key={self.min_key!r}."
+                )
+            if not (self.min_key < max_key):
+                raise ValueError(
+                    f"New max_key={max_key!r} is not greater than the segment's existing min_key={self.min_key!r}."
+                )
 
         if self.max_key is not None:
-            assert min_key < self.max_key
-            assert max_key <= self.max_key
+            if not (min_key < self.max_key):
+                raise ValueError(
+                    f"New min_key={min_key!r} is not less than the segment's existing max_key={self.max_key!r}."
+                )
+            if not (max_key <= self.max_key):
+                raise ValueError(f"New max_key={max_key!r} exceeds the segment's existing max_key={self.max_key!r}.")
 
         # If asked, enforce the PKs to proper types, mainly to meta-params of the relevant side,
         # so that we do not leak e.g. casing of UUIDs from side A to side B and vice versa.
@@ -254,7 +277,8 @@ class TableSegment:
             )
 
         if count:
-            assert checksum, (count, checksum)
+            if not checksum:
+                raise RuntimeError(f"Expected a non-zero checksum when count={count!r}, got checksum={checksum!r}.")
         return count or 0, int(checksum) if count else None
 
     def query_key_range(self) -> Tuple[tuple, tuple]:
@@ -270,7 +294,8 @@ class TableSegment:
 
         # Min/max keys are interleaved
         min_key, max_key = result[::2], result[1::2]
-        assert len(min_key) == len(max_key)
+        if len(min_key) != len(max_key):
+            raise RuntimeError(f"Interleaved key result has unequal min/max lengths: {len(min_key)} vs {len(max_key)}.")
 
         return min_key, max_key
 
@@ -282,5 +307,8 @@ class TableSegment:
         if not self.is_bounded:
             raise RuntimeError("Cannot approximate the size of an unbounded segment. Must have min_key and max_key.")
         diff = self.max_key - self.min_key
-        assert all(d > 0 for d in diff)
+        if not all(d > 0 for d in diff):
+            raise RuntimeError(
+                f"Key range has non-positive dimension(s): min_key={self.min_key!r}, max_key={self.max_key!r}."
+            )
         return int_product(diff)

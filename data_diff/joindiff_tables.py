@@ -100,7 +100,8 @@ def _slice_tuple(t, *sizes):
     for size in sizes:
         yield t[i : i + size]
         i += size
-    assert i == len(t)
+    if i != len(t):
+        raise ValueError(f"Tuple slice sizes do not sum to total length: consumed {i}, expected {len(t)}.")
 
 
 def json_friendly_value(v):
@@ -176,7 +177,8 @@ class JoinDiffer(TableDiffer):
         segment_index=None,
         segment_count=None,
     ):
-        assert table1.database is table2.database
+        if table1.database is not table2.database:
+            raise ValueError("Join-diff segments must share the same database instance.")
 
         if segment_index or table1.min_key or max_rows:
             logger.info(
@@ -203,7 +205,8 @@ class JoinDiffer(TableDiffer):
             if self.materialize_to_table
             else None,
         ):
-            assert len(a_cols) == len(b_cols)
+            if len(a_cols) != len(b_cols):
+                raise RuntimeError(f"Column count mismatch: a_cols={len(a_cols)}, b_cols={len(b_cols)}.")
             logger.debug(f"Querying for different rows: {table1.table_path}")
             diff = db.query(diff_rows, list, log_message=table1.table_path)
             info_tree.info.set_diff(diff, schema=tuple(diff_rows.schema.items()))
@@ -219,7 +222,8 @@ class JoinDiffer(TableDiffer):
                 # _is_diff, a_row, b_row = _slice_tuple(x, len(is_diff_cols), len(a_cols), len(b_cols))
                 _is_diff, ab_row = _slice_tuple(x, len(is_diff_cols), len(a_cols) + len(b_cols))
                 a_row, b_row = ab_row[::2], ab_row[1::2]
-                assert len(a_row) == len(b_row)
+                if len(a_row) != len(b_row):
+                    raise RuntimeError(f"Row length mismatch: a_row={len(a_row)}, b_row={len(b_row)}.")
                 if not is_xb:
                     yield "-", tuple(a_row)
                 if not is_xa:
@@ -394,6 +398,7 @@ class JoinDiffer(TableDiffer):
         db.query(exclusive_rows(exclusive_rows_query), None)
 
     def _materialize_diff(self, db, diff_rows, segment_index=None):
-        assert self.materialize_to_table
+        if not self.materialize_to_table:
+            raise RuntimeError("_materialize_diff called but materialize_to_table is not set.")
 
         append_to_table(db, self.materialize_to_table, diff_rows.limit(self.table_write_limit))

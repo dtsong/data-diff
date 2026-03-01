@@ -130,7 +130,8 @@ class Snowflake(Database):
         # It's a known issue: https://github.com/snowflakedb/snowflake-connector-python/issues/145
         logging.getLogger("snowflake.connector.network").disabled = True
 
-        assert '"' not in schema, "Schema name should not contain quotes!"
+        if '"' in schema:
+            raise ValueError("Schema name should not contain quotes!")
         if key_content and key:
             raise ConnectError("Only key value or key file path can be specified, not both")
 

@@ -482,7 +482,8 @@ class Join(ExprNode, ITable, Root):
 
     @property
     def schema(self) -> Schema:
-        assert self.columns  # TODO Implement SELECT *
+        if not self.columns:
+            raise ValueError("Join must specify columns explicitly (SELECT * not yet implemented).")
         s = self.source_tables[0].schema  # TODO validate types match between both tables
         return type(s)({c.name: c.type for c in self.columns})
 
@@ -524,7 +525,8 @@ class GroupBy(ExprNode, ITable, Root):
     having_exprs: Optional[Sequence[Expr]] = None
 
     def __attrs_post_init__(self) -> None:
-        assert self.keys or self.values
+        if not self.keys and not self.values:
+            raise ValueError("GroupBy must have at least one key or value expression.")
 
     def having(self, *exprs) -> Self:
         """Add a 'HAVING' clause to the group-by"""
@@ -559,7 +561,8 @@ class TableOp(ExprNode, ITable, Root):
     def schema(self) -> Schema:
         s1 = self.table1.schema
         s2 = self.table2.schema
-        assert len(s1) == len(s2)
+        if len(s1) != len(s2):
+            raise ValueError(f"TableOp requires tables with matching schema lengths, got {len(s1)} and {len(s2)}.")
         return s1
 
 
@@ -584,7 +587,10 @@ class Select(ExprNode, ITable, Root):
 
     @classmethod
     def make(cls, table: ITable, distinct: bool = SKIP, optimizer_hints: str = SKIP, **kwargs):
-        assert "table" not in kwargs
+        if "table" in kwargs:
+            raise ValueError(
+                "Do not pass 'table' as a keyword argument to Select.make(); pass it as the first positional argument."
+            )
 
         if not isinstance(table, cls):  # If not Select
             if distinct is not SKIP:

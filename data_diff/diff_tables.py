@@ -111,7 +111,8 @@ class DiffResultWrapper:
             if is_dbt:
                 extra_column_values = values[len_key_columns:]
             if k in diff_by_key:
-                assert sign != diff_by_key[k]
+                if sign == diff_by_key[k]:
+                    raise RuntimeError(f"Unexpected duplicate sign {sign!r} for key {k!r} in diff results.")
                 diff_by_key[k] = "!"
                 if is_dbt:
                     for i in range(0, len(extra_columns)):
@@ -343,7 +344,8 @@ class TableDiffer(ThreadBase, ABC):
         level=0,
         max_rows=None,
     ):
-        assert table1.is_bounded and table2.is_bounded
+        if not (table1.is_bounded and table2.is_bounded):
+            raise ValueError("Both table segments must be bounded (min_key and max_key must be set).")
 
         # Choose evenly spaced checkpoints (according to min_key and max_key)
         biggest_table = max(table1, table2, key=methodcaller("approximate_size"))

@@ -62,7 +62,8 @@ class MatchUriPath:
 
                     arg = None
 
-            assert param and param not in matches
+            if not param or param in matches:
+                raise ValueError(f"Invalid or duplicate parameter '{param}' in URI parsing.")
             matches[param] = arg
 
         for param in kwparams:
@@ -71,7 +72,8 @@ class MatchUriPath:
             except KeyError:
                 raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}")
 
-            assert param and arg and param not in matches, (param, arg, matches.keys())
+            if not param or not arg or param in matches:
+                raise ValueError(f"Invalid or duplicate keyword parameter '{param}' in URI parsing.")
             matches[param] = arg
 
         for param, value in dsn_dict.items():
@@ -169,7 +171,8 @@ class Connect:
             raise NotImplementedError(f"Scheme '{scheme}' currently not supported")
 
         if scheme == "databricks":
-            assert not dsn.user
+            if dsn.user:
+                raise ValueError("Databricks URI should not include a username; use access_token via password field.")
             kw = {}
             kw["access_token"] = dsn.password
             kw["http_path"] = dsn.path
@@ -189,7 +192,8 @@ class Connect:
 
             if scheme == "snowflake":
                 kw["account"] = dsn.host
-                assert not dsn.port
+                if dsn.port:
+                    raise ValueError("Snowflake URI should not include a port; use account name as host.")
                 kw["user"] = dsn.user
                 kw["password"] = dsn.password
             else:

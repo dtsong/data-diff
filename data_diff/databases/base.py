@@ -269,7 +269,7 @@ class BaseDialect(abc.ABC):
             return s.upper() if elem.uppercase else s.lower() if elem.lowercase else s
         elif isinstance(elem, ArithString):
             return f"'{elem}'"
-        assert False, elem
+        raise TypeError(f"Unsupported literal element type {type(elem).__name__!r}: {elem!r}")
 
     def render_compilable(self, c: Compiler, elem: Compilable) -> str:
         # All ifs are only for better code navigation, IDE usage detection, and type checking.
@@ -434,7 +434,8 @@ class BaseDialect(abc.ABC):
                 for expr in elem.exprs
             ]
 
-        assert items
+        if not items:
+            raise RuntimeError("No items to render for string concat/coalesce expression.")
         if len(items) == 1:
             return items[0]
 
@@ -466,7 +467,8 @@ class BaseDialect(abc.ABC):
         return f"WHEN {self.compile(c, elem.when)} THEN {self.compile(c, elem.then)}"
 
     def render_casewhen(self, c: Compiler, elem: CaseWhen) -> str:
-        assert elem.cases
+        if not elem.cases:
+            raise ValueError("CaseWhen expression must have at least one WHEN/THEN case.")
         when_thens = " ".join(self.compile(c, case) for case in elem.cases)
         else_expr = (" ELSE " + self.compile(c, elem.else_expr)) if elem.else_expr is not None else ""
         return f"CASE {when_thens}{else_expr} END"
@@ -523,7 +525,8 @@ class BaseDialect(abc.ABC):
             select += " GROUP BY " + ", ".join(map(compile_fn, elem.group_by_exprs))
 
         if elem.having_exprs:
-            assert elem.group_by_exprs
+            if not elem.group_by_exprs:
+                raise ValueError("HAVING clause requires a GROUP BY clause.")
             select += " HAVING " + " AND ".join(map(compile_fn, elem.having_exprs))
 
         if elem.order_by_exprs:
@@ -657,7 +660,8 @@ class BaseDialect(abc.ABC):
 
     def concat(self, items: List[str]) -> str:
         "Provide SQL for concatenating a bunch of columns into a string"
-        assert len(items) > 1
+        if len(items) <= 1:
+            raise ValueError(f"concat() requires at least 2 items, got {len(items)}.")
         joined_exprs = ", ".join(items)
         return f"concat({joined_exprs})"
 
@@ -1012,7 +1016,8 @@ class Database(abc.ABC):
                 res = datetime.fromisoformat(res[:23])  # TODO use a better parsing method
             return res
         elif res_type is tuple:
-            assert len(res) == 1, (sql_code, res)
+            if len(res) != 1:
+                raise RuntimeError(f"Expected exactly 1 result row for tuple query, got {len(res)}: {sql_code!r}")
             return res[0]
         elif getattr(res_type, "__origin__", None) is list and len(res_type.__args__) == 1:
             if res_type.__args__ in ((int,), (str,)):
@@ -1062,7 +1067,11 @@ class Database(abc.ABC):
             for r in rows
         }
 
-        assert len(d) == len(rows)
+        if len(d) != len(rows):
+            raise RuntimeError(
+                f"Column info dict has {len(d)} entries but expected {len(rows)}. "
+                "Possible duplicate column names in query result."
+            )
         return d
 
     def select_table_unique_columns(self, path: DbPath) -> str:
@@ -1139,7 +1148,8 @@ class Database(abc.ABC):
                         f"Mixed UUID/Non-UUID values detected in column {'.'.join(table_path)}.{col_name}, disabling UUID support."
                     )
                 else:
-                    assert col_name in col_dict
+                    if col_name not in col_dict:
+                        raise RuntimeError(f"Column {col_name!r} not found in col_dict when updating UUID type.")
                     col_dict[col_name] = String_UUID(
                         lowercase=all(s == s.lower() for s in uuid_samples),
                         uppercase=all(s == s.upper() for s in uuid_samples),
@@ -1154,7 +1164,10 @@ class Database(abc.ABC):
                             f"Mixed Alphanum/Non-Alphanum values detected in column {'.'.join(table_path)}.{col_name}. It cannot be used as a key."
                         )
                     else:
-                        assert col_name in col_dict
+                        if col_name not in col_dict:
+                            raise RuntimeError(
+                                f"Column {col_name!r} not found in col_dict when updating VaryingAlphanum type."
+                            )
                         col_dict[col_name] = String_VaryingAlphanum(collation=col_dict[col_name].collation)
 
         return col_dict
@@ -1168,7 +1181,8 @@ class Database(abc.ABC):
         raise ValueError(f"{self.name}: Bad table path for {self}: '{'.'.join(path)}'. Expected form: schema.table")
 
     def _query_cursor(self, c, sql_code: str) -> QueryResult:
-        assert isinstance(sql_code, str), sql_code
+        if not isinstance(sql_code, str):
+            raise TypeError(f"sql_code must be a str, got {type(sql_code).__name__!r}: {sql_code!r}")
         try:
             c.execute(sql_code)
             if sql_code.lower().startswith(("select", "explain", "show")):
@@ -1237,7 +1251,8 @@ class ThreadedDatabase(Database):
         logger.info(f"[{self.name}] Starting a threadpool, size={self.thread_count}.")
 
     def set_conn(self):
-        assert not hasattr(self.thread_local, "conn")
+        if hasattr(self.thread_local, "conn"):
+            raise RuntimeError("Thread-local connection is already initialized; set_conn() called more than once.")
         try:
             self.thread_local.conn = self.create_connection()
         except Exception as e:

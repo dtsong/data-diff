@@ -28,7 +28,8 @@ class SegmentInfo:
 
     def update_from_children(self, child_infos) -> None:
         child_infos = list(child_infos)
-        assert child_infos
+        if not child_infos:
+            raise ValueError("update_from_children requires at least one child info.")
 
         # self.diff = list(chain(*[c.diff for c in child_infos]))
         self.diff_count = sum(c.diff_count for c in child_infos if c.diff_count is not None)

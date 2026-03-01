@@ -72,7 +72,8 @@ V = TypeVar("V")
 
 class CaseAwareMapping(MutableMapping[str, V]):
     @abstractmethod
-    def get_key(self, key: str) -> str: ...
+    def get_key(self, key: str) -> str:
+        ...
 
     def new(self, initial=()) -> Self:
         return type(self)(initial)
@@ -129,7 +130,8 @@ class ArithString:
         return cls(*args, **kw)
 
     def range(self, other: "ArithString", count: int) -> List[Self]:
-        assert isinstance(other, ArithString)
+        if not isinstance(other, ArithString):
+            raise TypeError(f"Expected ArithString, got {type(other).__name__!r}.")
         checkpoints = split_space(self.int, other.int, count)
         return [self.new(int=i) for i in checkpoints]
 
@@ -156,7 +158,8 @@ class ArithUUID(ArithString):
     uppercase: Optional[bool] = None
 
     def range(self, other: "ArithUUID", count: int) -> List[Self]:
-        assert isinstance(other, ArithUUID)
+        if not isinstance(other, ArithUUID):
+            raise TypeError(f"Expected ArithUUID, got {type(other).__name__!r}.")
         checkpoints = split_space(self.uuid.int, other.uuid.int, count)
         return [attrs.evolve(self, uuid=i) for i in checkpoints]
 
@@ -276,7 +279,8 @@ class ArithAlphanumeric(ArithString):
         return NotImplemented
 
     def range(self, other: "ArithAlphanumeric", count: int) -> List[Self]:
-        assert isinstance(other, ArithAlphanumeric)
+        if not isinstance(other, ArithAlphanumeric):
+            raise TypeError(f"Expected ArithAlphanumeric, got {type(other).__name__!r}.")
         n1, n2 = alphanums_to_numbers(self._str, other._str)
         split = split_space(n1, n2, count)
         return [self.new(numberToAlphanum(s)) for s in split]
@@ -320,7 +324,8 @@ def number_to_human(n):
 
 def split_space(start, end, count) -> List[int]:
     size = end - start
-    assert count <= size, (count, size)
+    if count > size:
+        raise ValueError(f"count ({count}) must not exceed size ({size}).")
     return list(range(start, end, (size + 1) // (count + 1)))[1 : count + 1]
 
 

@@ -81,7 +81,8 @@ class LexicographicSpace:
         for i1, i2, d in reversed(list(safezip(v1, v2, self.dims))):
             n = i1 + i2 + carry
             carry = n // d
-            assert carry <= 1
+            if carry > 1:
+                raise RuntimeError(f"Unexpected carry value {carry} during lexicographic addition.")
             n %= d
             res.append(n)
 
@@ -89,7 +90,8 @@ class LexicographicSpace:
             raise Overflow("Overflow")
 
         new_v = tuple(reversed(res))
-        assert new_v in self
+        if new_v not in self:
+            raise RuntimeError(f"Computed value {new_v!r} is outside the lexicographic space bounds.")
         return new_v
 
     def sub(self, v1: Vector, v2: Vector):
@@ -107,7 +109,8 @@ class LexicographicSpace:
         return tuple(self._divide(v, count))
 
     def range(self, min_value: Vector, max_value: Vector, count: int):
-        assert min_value in self and max_value in self
+        if min_value not in self or max_value not in self:
+            raise ValueError(f"min_value or max_value is outside the lexicographic space bounds.")
         count -= 1
         size = self.sub(max_value, min_value)
         interval = self.divide(size, count)
@@ -142,12 +145,14 @@ class BoundedLexicographicSpace:
         return all(mn <= i < mx for i, mn, mx in safezip(p, self.min_bound, self.max_bound))
 
     def to_uspace(self, v: Vector) -> Vector:
-        assert v in self
+        if v not in self:
+            raise ValueError(f"Vector {v!r} is outside the bounded lexicographic space.")
         return sub_v(v, self.min_bound)
 
     def from_uspace(self, v: Vector) -> Vector:
         res = add_v(v, self.min_bound)
-        assert res in self
+        if res not in self:
+            raise RuntimeError(f"Result vector {res!r} fell outside the bounded lexicographic space.")
         return res
 
     def add_interval(self, v1: Vector, interval: Interval) -> Vector:

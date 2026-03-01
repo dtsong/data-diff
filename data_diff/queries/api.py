@@ -67,7 +67,8 @@ def table(*path: str, schema: Union[dict, CaseAwareMapping] = None) -> TablePath
     if not all(isinstance(i, str) for i in path):
         raise TypeError(f"All elements of table path must be of type 'str'. Got: {path}")
     if schema and not isinstance(schema, CaseAwareMapping):
-        assert isinstance(schema, dict)
+        if not isinstance(schema, dict):
+            raise TypeError(f"schema must be a dict or CaseAwareMapping, got {type(schema).__name__!r}.")
         schema = CaseSensitiveDict(schema)
     return TablePath(path, schema)
 
@@ -152,7 +153,8 @@ def coalesce(*exprs) -> Func:
 
 
 def insert_rows_in_batches(db, tbl: TablePath, rows, *, columns=None, batch_size=1024 * 8) -> None:
-    assert batch_size > 0
+    if batch_size <= 0:
+        raise ValueError(f"batch_size must be a positive integer, got {batch_size!r}.")
     rows = list(rows)
 
     while rows:

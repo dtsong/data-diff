@@ -162,7 +162,11 @@ class Redshift(PostgreSQL):
             )
             for r in rows
         }
-        assert len(d) == len(rows)
+        if len(d) != len(rows):
+            raise RuntimeError(
+                f"Column info dict has {len(d)} entries but expected {len(rows)}. "
+                "Possible duplicate column names in query result."
+            )
         return d
 
     # when using a non-information_schema source, strip (N) from type(N) etc. to match

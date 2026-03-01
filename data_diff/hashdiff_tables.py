@@ -193,7 +193,8 @@ class HashDiffer(TableDiffer):
 
         (count1, checksum1), (count2, checksum2) = self._threaded_call("count_and_checksum", [table1, table2])
 
-        assert not info_tree.info.rowcounts
+        if info_tree.info.rowcounts:
+            raise RuntimeError("info_tree rowcounts already populated; expected empty at this point.")
         info_tree.info.rowcounts = {1: count1, 2: count2}
 
         if count1 == 0 and count2 == 0:
@@ -203,7 +204,10 @@ class HashDiffer(TableDiffer):
                 table1.min_key,
                 table1.max_key,
             )
-            assert checksum1 is None and checksum2 is None
+            if checksum1 is not None or checksum2 is not None:
+                raise RuntimeError(
+                    f"Expected both checksums to be None for empty segment, got: {checksum1!r}, {checksum2!r}"
+                )
             info_tree.info.is_diff = False
             return
 
@@ -223,7 +227,8 @@ class HashDiffer(TableDiffer):
         level=0,
         max_rows=None,
     ):
-        assert table1.is_bounded and table2.is_bounded
+        if not (table1.is_bounded and table2.is_bounded):
+            raise ValueError("Both table segments must be bounded (min_key and max_key must be set).")
 
         max_space_size = max(table1.approximate_size(), table2.approximate_size())
         if max_rows is None:
