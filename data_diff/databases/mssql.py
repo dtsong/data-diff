@@ -178,9 +178,6 @@ class MsSQL(ThreadedDatabase):
         self._args = {k: v for k, v in args.items() if v is not None}
         self._args["driver"] = "{ODBC Driver 18 for SQL Server}"
 
-        # TODO temp dev debug
-        self._args["TrustServerCertificate"] = "yes"
-
         try:
             self.default_database = self._args["database"]
             self.default_schema = self._args["schema"]

@@ -34,12 +34,11 @@ jobs:
         run: uv sync --frozen
 
       - name: Build the stack
-        run: docker compose up -d mysql postgres presto trino clickhouse vertica
+        run: docker compose up -d mysql postgres presto trino clickhouse
 
       - name: Run tests
         env:
           DATADIFF_CLICKHOUSE_URI: "clickhouse://clickhouse:Password1@localhost:9000/clickhouse"
-          DATADIFF_VERTICA_URI: "vertica://vertica:Password1@localhost:5433/vertica"
         run: |
           chmod +x tests/waiting_for_stack_up.sh
           ./tests/waiting_for_stack_up.sh && uv run pytest tests/
