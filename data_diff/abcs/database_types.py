@@ -296,7 +296,8 @@ class Integer(NumericType, IKey):
     python_type: type = int
 
     def __attrs_post_init__(self) -> None:
-        assert self.precision == 0
+        if self.precision != 0:
+            raise ValueError(f"Integer type must have precision=0, got {self.precision!r}.")
 
 
 @attrs.define(frozen=True)

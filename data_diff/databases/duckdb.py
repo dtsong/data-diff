@@ -154,14 +154,13 @@ class DuckDB(Database):
                 connection = ddb.connect(database=self._args["filepath"], config=config)
                 custom_user_agent_results = connection.sql("PRAGMA USER_AGENT;").fetchall()
                 custom_user_agent_filtered = custom_user_agent_results[0][0]
-                assert custom_user_agent in custom_user_agent_filtered
+                if custom_user_agent not in custom_user_agent_filtered:
+                    raise ConnectError("Custom user agent is invalid or not registered in DuckDB.")
             else:
                 connection = ddb.connect(database=self._args["filepath"])
             return connection
         except ddb.OperationalError as e:
             raise ConnectError(*e.args) from e
-        except AssertionError:
-            raise ConnectError("Assertion failed: Custom user agent is invalid.") from None
 
     def select_table_schema(self, path: DbPath) -> str:
         database, schema, table = self._normalize_table_path(path)
