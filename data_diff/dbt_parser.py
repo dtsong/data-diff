@@ -166,6 +166,7 @@ class DbtParser:
         include_columns = []
         exclude_columns = []
 
+        # "datafold" key comes from user dbt project config (schema.yml), not Datafold Cloud
         if "datafold" in model_meta and "datadiff" in model_meta["datafold"]:
             config = model_meta["datafold"]["datadiff"]
             where_filter = config.get("filter")

@@ -15,7 +15,6 @@ from functools import partial, wraps
 from typing import (
     Any,
     ClassVar,
-    TypeVar,
 )
 from uuid import UUID
 
@@ -889,7 +888,6 @@ class BaseDialect(abc.ABC):
         return f"/*+ {hints} */ "
 
 
-T = TypeVar("T", bound=BaseDialect)
 Row = Sequence[Any]
 
 
@@ -1177,9 +1175,8 @@ class Database(abc.ABC):
                 fetched = c.fetchall()
                 result = QueryResult(fetched, columns)
                 return result
-        except Exception as _e:
-            # logger.exception(e)
-            # logger.error(f"Caused by SQL: {sql_code}")
+        except Exception:
+            logger.debug("SQL execution failed", exc_info=True)
             raise
 
     def _query_conn(self, conn, sql_code: str | ThreadLocalInterpreter) -> QueryResult:

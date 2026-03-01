@@ -15,7 +15,7 @@ Community revival release. This marks the beginning of active community maintena
 - **Build system**: Migrated from Poetry to uv for dependency management and packaging.
 - **Test framework**: Migrated from unittest to pytest.
 - **CI/CD**: Modernized GitHub Actions workflows with updated dependencies and security hardening.
-- **Linting**: Adopted ruff for linting and formatting, replacing black/flake8.
+- **Linting**: Adopted ruff for linting and formatting, replacing the previous black-based configuration.
 
 ### Removed
 

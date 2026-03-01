@@ -37,6 +37,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Type check (non-blocking)
+        if: matrix.python-version == '3.10'
         continue-on-error: true
         run: uv tool run ty check --python-version 3.10
 

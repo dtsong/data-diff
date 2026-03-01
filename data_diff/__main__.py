@@ -30,7 +30,7 @@ COLOR_SCHEME = {
 }
 
 
-def _get_log_handlers(is_dbt: bool | None = False) -> dict[str, logging.Handler]:
+def _get_log_handlers(is_dbt: bool = False) -> dict[str, logging.Handler]:
     handlers = {}
     date_format = "%H:%M:%S"
     log_format_rich = "%(message)s"
@@ -590,8 +590,6 @@ def _data_diff(
         diff_iter = differ.diff_tables(*segments)
 
         if limit:
-            if stats:
-                raise ValueError("Cannot use --limit together with --stats.")
             diff_iter = islice(diff_iter, int(limit))
 
         _print_result(stats, json_output, diff_iter)

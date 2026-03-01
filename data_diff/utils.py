@@ -7,7 +7,7 @@ import string
 from abc import abstractmethod
 from collections.abc import Iterable, Iterator, MutableMapping, Sequence
 from datetime import datetime
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -134,7 +134,7 @@ class ArithString:
         return [self.new(int=i) for i in checkpoints]
 
 
-def _any_to_uuid(v: Union[str, int, UUID, "ArithUUID"]) -> UUID:
+def _any_to_uuid(v: "str | int | UUID | ArithUUID") -> UUID:
     if isinstance(v, ArithUUID):
         return v.uuid
     elif isinstance(v, UUID):
@@ -169,7 +169,7 @@ class ArithUUID(ArithString):
             return attrs.evolve(self, uuid=self.uuid.int + other)
         return NotImplemented
 
-    def __sub__(self, other: Union["ArithUUID", int]):
+    def __sub__(self, other: "ArithUUID | int"):
         if isinstance(other, int):
             return attrs.evolve(self, uuid=self.uuid.int - other)
         elif isinstance(other, ArithUUID):

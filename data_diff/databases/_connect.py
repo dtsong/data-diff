@@ -1,5 +1,4 @@
 import logging
-import sys
 import weakref
 from collections.abc import Hashable, MutableMapping
 from contextlib import suppress
@@ -7,17 +6,9 @@ from itertools import zip_longest
 
 import attrs
 import dsnparse
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomllib
-    except ModuleNotFoundError:
-        import tomli as tomllib
-
 from typing_extensions import Self
 
+from data_diff._compat import tomllib
 from data_diff.databases.base import Database, ThreadedDatabase
 from data_diff.databases.bigquery import BigQuery
 from data_diff.databases.clickhouse import Clickhouse
@@ -57,7 +48,7 @@ class MatchUriPath:
                     arg = dsn_dict.pop(param)
                 except KeyError:
                     if not optional:
-                        raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}")
+                        raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}") from None
 
                     arg = None
 
@@ -69,7 +60,7 @@ class MatchUriPath:
             try:
                 arg = dsn_dict.pop(param)
             except KeyError:
-                raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}")
+                raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}") from None
 
             if not param or not arg or param in matches:
                 raise ValueError(f"Invalid or duplicate keyword parameter '{param}' in URI parsing.")
@@ -161,13 +152,13 @@ class Connect:
             try:
                 conn_dict = config["database"][database]
             except KeyError:
-                raise ValueError(f"Cannot find database config named '{database}'.")
+                raise ValueError(f"Cannot find database config named '{database}'.") from None
             return self.connect_with_dict(conn_dict, thread_count, **kwargs)
 
         try:
             cls = self.database_by_scheme[scheme]
         except KeyError:
-            raise NotImplementedError(f"Scheme '{scheme}' currently not supported")
+            raise NotImplementedError(f"Scheme '{scheme}' currently not supported") from None
 
         if scheme == "databricks":
             if dsn.user:
@@ -220,7 +211,7 @@ class Connect:
         try:
             cls = self.database_by_scheme[driver]
         except KeyError:
-            raise NotImplementedError(f"Driver '{driver}' currently not supported")
+            raise NotImplementedError(f"Driver '{driver}' currently not supported") from None
 
         if issubclass(cls, ThreadedDatabase):
             db = cls(thread_count=thread_count, **d, **kwargs)

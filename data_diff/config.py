@@ -1,16 +1,8 @@
 import os
 import re
-import sys
 from typing import Any
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomllib
-    except ModuleNotFoundError:
-        import tomli as tomllib
-
+from data_diff._compat import tomllib
 
 _ARRAY_FIELDS = (
     "key_columns",

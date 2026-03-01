@@ -64,6 +64,22 @@ for sign, row in diff:
 | ClickHouse  | Supported |
 | Vertica     | Supported |
 
+## dbt Integration
+
+data-diff integrates with [dbt](https://www.getdbt.com/) to compare tables between development and production environments:
+
+```bash
+data-diff --dbt
+```
+
+Install with dbt support:
+
+```bash
+pip install 'data-diff[dbt]'
+```
+
+See the [full documentation](https://data-diff.readthedocs.io/) for configuration details.
+
 ## Documentation
 
 - [Full Documentation](https://data-diff.readthedocs.io/)
