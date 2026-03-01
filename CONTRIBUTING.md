@@ -16,7 +16,7 @@ Please include:
 
 Always redact sensitive information like passwords before pasting.
 
-Check [existing issues](https://github.com/datafold/data-diff/issues) before filing a new one.
+Check [existing issues](https://github.com/dtsong/data-diff/issues) before filing a new one.
 
 ## Suggesting Enhancements
 
@@ -27,7 +27,7 @@ Open an issue for feature requests, new database support, or documentation impro
 ### Setup
 
 ```bash
-git clone https://github.com/datafold/data-diff.git
+git clone https://github.com/dtsong/data-diff.git
 cd data-diff
 uv sync                  # install all dependencies
 uv run pre-commit install  # set up pre-commit hooks

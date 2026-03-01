@@ -64,9 +64,9 @@ all-dbs = [
 data-diff = "data_diff.__main__:main"
 
 [project.urls]
-Repository = "https://github.com/datafold/data-diff"
-Issues = "https://github.com/datafold/data-diff/issues"
-Changelog = "https://github.com/datafold/data-diff/blob/master/CHANGELOG.md"
+Repository = "https://github.com/dtsong/data-diff"
+Issues = "https://github.com/dtsong/data-diff/issues"
+Changelog = "https://github.com/dtsong/data-diff/blob/master/CHANGELOG.md"
 
 [dependency-groups]
 dev = [

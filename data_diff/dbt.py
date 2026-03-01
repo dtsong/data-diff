@@ -58,7 +58,7 @@ def dbt_diff(
     config = dbt_parser.get_datadiff_config()
 
     if not state and not (config.prod_database or config.prod_schema):
-        doc_url = "https://github.com/datafold/data-diff"
+        doc_url = "https://github.com/dtsong/data-diff"
         raise DataDiffDbtProjectVarsNotFoundError(
             f"""vars: data_diff: section not found in dbt_project.yml.\n\nTo solve this, please configure your dbt project: \n{doc_url}\n\nOr specify a production manifest using the `--state` flag."""
         )
@@ -200,7 +200,7 @@ def _get_prod_path_from_config(config, model, dev_database, dev_schema) -> tuple
             if not config.prod_custom_schema:
                 raise DataDiffCustomSchemaNoConfigError(
                     f"Found a custom schema on model {model.name}, but no value for\nvars:\n  data_diff:\n    prod_custom_schema:\nPlease set a value or utilize the `--state` flag!\n\n"
-                    + "For more details see: https://github.com/datafold/data-diff"
+                    + "For more details see: https://github.com/dtsong/data-diff"
                 )
             prod_schema = config.prod_custom_schema.replace("<custom_schema>", custom_schema)
             # no custom schema, use the default
