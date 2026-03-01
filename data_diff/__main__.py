@@ -54,14 +54,14 @@ def _get_log_handlers(is_dbt: bool | None = False) -> dict[str, logging.Handler]
 
 def _remove_passwords_in_dict(d: dict) -> None:
     for k, v in d.items():
-        if k == "password":
+        if k == "password" and isinstance(v, str):
             d[k] = "*" * len(v)
-        elif k == "filepath":
+        elif k == "filepath" and isinstance(v, str):
             if "motherduck_token=" in v:
                 d[k] = v.split("motherduck_token=")[0] + "motherduck_token=**********"
         elif isinstance(v, dict):
             _remove_passwords_in_dict(v)
-        elif k.startswith("database"):
+        elif k.startswith("database") and isinstance(v, str):
             d[k] = remove_password_from_url(v)
 
 
@@ -82,7 +82,7 @@ def diff_schemas(table1, table2, schema1, schema2, columns) -> None:
             cols = ", ".join(schema1)
             raise ValueError(f"Column '{c}' not found in table 1, named '{table1}'. Columns: {cols}")
         if c not in schema2:
-            cols = ", ".join(schema1)
+            cols = ", ".join(schema2)
             raise ValueError(f"Column '{c}' not found in table 2, named '{table2}'. Columns: {cols}")
 
         col1 = schema1[c]
@@ -512,18 +512,16 @@ def _data_diff(
     __conf__=None,
 ) -> None:
     if limit and stats:
-        logging.error("Cannot specify a limit when using the -s/--stats switch")
-        return
+        raise click.UsageError("Cannot specify --limit together with --stats.")
 
     key_columns = key_columns or ("id",)
     threaded, threads = _get_threads(threads, threads1, threads2)
     start = time.monotonic()
 
     if database1 is None or database2 is None:
-        logging.error(
-            f"Error: Databases not specified. Got {database1} and {database2}. Use --help for more information."
+        raise click.UsageError(
+            f"Databases not specified. Got database1={database1} and database2={database2}. Use --help for more information."
         )
-        return
 
     db1: Database
     db2: Database

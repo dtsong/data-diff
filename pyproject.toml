@@ -23,7 +23,6 @@ dependencies = [
     "attrs>=23.1.0",
     "click>=8.1",
     "dsnparse<0.2.0",
-    "mashumaro[msgpack]>=2.9,<4.0",
     "pydantic>=2.0",
     "rich>=13.0",
     "tabulate>=0.9.0",
@@ -65,9 +64,9 @@ all-dbs = [
 data-diff = "data_diff.__main__:main"
 
 [project.urls]
-Repository = "https://github.com/data-diff-community/data-diff"
-Issues = "https://github.com/data-diff-community/data-diff/issues"
-Changelog = "https://github.com/data-diff-community/data-diff/blob/master/CHANGELOG.md"
+Repository = "https://github.com/datafold/data-diff"
+Issues = "https://github.com/datafold/data-diff/issues"
+Changelog = "https://github.com/datafold/data-diff/blob/master/CHANGELOG.md"
 
 [dependency-groups]
 dev = [

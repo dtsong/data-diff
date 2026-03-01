@@ -247,7 +247,7 @@ class BaseDialect(abc.ABC):
             return self.render_coltype(attrs.evolve(compiler, root=False), elem)
         elif isinstance(elem, str):
             return f"'{elem}'"
-        elif isinstance(elem, (int, float)):
+        elif isinstance(elem, int | float):
             return str(elem)
         elif isinstance(elem, datetime):
             return self.timestamp_value(elem)
@@ -753,7 +753,7 @@ class BaseDialect(abc.ABC):
                 )
             )
 
-        elif issubclass(cls, (JSON, Array, Struct, Text, Native_UUID)):
+        elif issubclass(cls, JSON | Array | Struct | Text | Native_UUID):
             return cls()
 
         raise TypeError(f"Parsing {info.data_type} returned an unknown type {cls!r}.")
@@ -1008,7 +1008,7 @@ class Database(abc.ABC):
         elif getattr(res_type, "__origin__", None) is list and len(res_type.__args__) == 1:
             if res_type.__args__ in ((int,), (str,)):
                 return [_one(row) for row in res]
-            elif res_type.__args__ in [(tuple,), (tuple,)]:
+            elif res_type.__args__ == (tuple,):
                 return [tuple(row) for row in res]
             elif res_type.__args__ == (dict,):
                 return [dict(safezip(res.columns, row)) for row in res]

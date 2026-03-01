@@ -58,7 +58,7 @@ def dbt_diff(
     config = dbt_parser.get_datadiff_config()
 
     if not state and not (config.prod_database or config.prod_schema):
-        doc_url = "https://github.com/data-diff-community/data-diff#configure-your-dbt-project"
+        doc_url = "https://github.com/datafold/data-diff#configure-your-dbt-project"
         raise DataDiffDbtProjectVarsNotFoundError(
             f"""vars: data_diff: section not found in dbt_project.yml.\n\nTo solve this, please configure your dbt project: \n{doc_url}\n\nOr specify a production manifest using the `--state` flag."""
         )
@@ -118,12 +118,17 @@ def dbt_diff(
                         + "Skipped due to unknown primary key. Add uniqueness tests, meta, or tags.\n"
                     )
 
+    errors = []
     for future in as_completed(futures):
         model = futures[future]
         try:
             future.result()
         except Exception as e:
-            logger.error(f"An error occurred during the execution of a diff task: {model.unique_id} - {e}")
+            logger.error(f"Diff task failed for {model.unique_id}: {e}")
+            errors.append((model.unique_id, e))
+
+    if errors:
+        raise RuntimeError(f"{len(errors)} diff task(s) failed. First error: {errors[0][1]}")
 
 
 def _get_diff_vars(
@@ -195,7 +200,7 @@ def _get_prod_path_from_config(config, model, dev_database, dev_schema) -> tuple
             if not config.prod_custom_schema:
                 raise DataDiffCustomSchemaNoConfigError(
                     f"Found a custom schema on model {model.name}, but no value for\nvars:\n  data_diff:\n    prod_custom_schema:\nPlease set a value or utilize the `--state` flag!\n\n"
-                    + "For more details see: https://github.com/data-diff-community/data-diff"
+                    + "For more details see: https://github.com/datafold/data-diff"
                 )
             prod_schema = config.prod_custom_schema.replace("<custom_schema>", custom_schema)
             # no custom schema, use the default
@@ -232,14 +237,19 @@ def _local_diff(
 
     try:
         table1_columns = table1.get_schema()
-    # Not ideal, but we don't have more specific exceptions yet
     except Exception as ex:
-        logger.debug(ex)
-        diff_output_str += "[red]New model or no access to prod table.[/] \n"
+        logger.warning(f"Could not fetch schema for {prod_qualified_str}: {type(ex).__name__}: {ex}")
+        diff_output_str += f"[red]Could not access prod table: {type(ex).__name__}[/] \n"
         rich.print(diff_output_str)
         return
 
-    table2_columns = table2.get_schema()
+    try:
+        table2_columns = table2.get_schema()
+    except Exception as ex:
+        logger.warning(f"Could not fetch schema for {dev_qualified_str}: {type(ex).__name__}: {ex}")
+        diff_output_str += f"[red]Could not access dev table: {type(ex).__name__}[/] \n"
+        rich.print(diff_output_str)
+        return
 
     table1_column_names = set(table1_columns.keys())
     table2_column_names = set(table2_columns.keys())
