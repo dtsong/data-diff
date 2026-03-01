@@ -97,6 +97,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["data_diff"]
 
+[tool.ty]
+python-version = "3.10"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-x --timeout=300 --tb=short"
