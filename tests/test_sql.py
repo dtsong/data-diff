@@ -14,10 +14,10 @@ class TestSQL(unittest.TestCase):
         self.compiler = Compiler(self.mysql)
 
     def test_compile_string(self):
-        self.assertEqual("SELECT 1", self.compiler.compile(Code("SELECT 1")))
+        self.assertEqual("SELECT 1", self.compiler.dialect.compile(self.compiler, Code("SELECT 1")))
 
     def test_compile_int(self):
-        self.assertEqual("1", self.compiler.compile(1))
+        self.assertEqual("1", self.compiler.dialect.compile(self.compiler, 1))
 
     def test_compile_table_name(self):
         compiler = attrs.evolve(self.compiler, root=False)
@@ -27,7 +27,7 @@ class TestSQL(unittest.TestCase):
         expected_sql = "SELECT name FROM `marine_mammals`.`walrus`"
         self.assertEqual(
             expected_sql,
-            self.compiler.compile(
+            self.compiler.dialect.compile(self.compiler, 
                 Select(
                     table("marine_mammals", "walrus"),
                     [Code("name")],
@@ -39,7 +39,7 @@ class TestSQL(unittest.TestCase):
     #     expected_sql = "(SELECT *, (row_number() over (ORDER BY id)) as idx FROM `walrus` ORDER BY id) tmp"
     #     self.assertEqual(
     #         expected_sql,
-    #         self.compiler.compile(
+    #         self.compiler.dialect.compile(self.compiler, 
     #             Enum(
     #                 ("walrus",),
     #                 "id",
@@ -51,7 +51,7 @@ class TestSQL(unittest.TestCase):
     #     expected_sql = "SELECT name, sum(cast(conv(substring(md5(concat(cast(id as char), cast(timestamp as char))), 18), 16, 10) as unsigned)) FROM `marine_mammals`.`walrus`"
     #     self.assertEqual(
     #         expected_sql,
-    #         self.compiler.compile(
+    #         self.compiler.dialect.compile(self.compiler, 
     #             Select(
     #                 ["name", Checksum(["id", "timestamp"])],
     #                 TableName(("marine_mammals", "walrus")),
@@ -63,7 +63,7 @@ class TestSQL(unittest.TestCase):
         expected_sql = "SELECT name FROM `marine_mammals`.`walrus` WHERE (id <= 1000) AND (id > 1)"
         self.assertEqual(
             expected_sql,
-            self.compiler.compile(
+            self.compiler.dialect.compile(self.compiler, 
                 Select(
                     table("marine_mammals", "walrus"),
                     [Code("name")],
@@ -76,7 +76,7 @@ class TestSQL(unittest.TestCase):
         expected_sql = "SELECT name FROM `marine_mammals`.`walrus` WHERE (id IN (1, 2, 3))"
         self.assertEqual(
             expected_sql,
-            self.compiler.compile(
+            self.compiler.dialect.compile(self.compiler, 
                 Select(table("marine_mammals", "walrus"), [Code("name")], [In(Code("id"), [1, 2, 3])])
             ),
         )
@@ -85,14 +85,14 @@ class TestSQL(unittest.TestCase):
         expected_sql = "SELECT count(*) FROM `marine_mammals`.`walrus` WHERE (id IN (1, 2, 3))"
         self.assertEqual(
             expected_sql,
-            self.compiler.compile(Select(table("marine_mammals", "walrus"), [Count()], [In(Code("id"), [1, 2, 3])])),
+            self.compiler.dialect.compile(self.compiler, Select(table("marine_mammals", "walrus"), [Count()], [In(Code("id"), [1, 2, 3])])),
         )
 
     def test_count_with_column(self):
         expected_sql = "SELECT count(id) FROM `marine_mammals`.`walrus` WHERE (id IN (1, 2, 3))"
         self.assertEqual(
             expected_sql,
-            self.compiler.compile(
+            self.compiler.dialect.compile(self.compiler, 
                 Select(table("marine_mammals", "walrus"), [Count(Code("id"))], [In(Code("id"), [1, 2, 3])])
             ),
         )
@@ -101,7 +101,7 @@ class TestSQL(unittest.TestCase):
         expected_sql = "EXPLAIN FORMAT=TREE SELECT count(id) FROM `marine_mammals`.`walrus` WHERE (id IN (1, 2, 3))"
         self.assertEqual(
             expected_sql,
-            self.compiler.compile(
+            self.compiler.dialect.compile(self.compiler, 
                 Explain(Select(table("marine_mammals", "walrus"), [Count(Code("id"))], [In(Code("id"), [1, 2, 3])]))
             ),
         )

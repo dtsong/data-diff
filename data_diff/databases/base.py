@@ -115,10 +115,6 @@ class Compiler(AbstractCompiler):
     def dialect(self) -> "BaseDialect":
         return self.database.dialect
 
-    # TODO: DEPRECATED: Remove once the dialect is used directly in all places.
-    def compile(self, elem, params=None) -> str:
-        return self.dialect.compile(self, elem, params)
-
     def new_unique_name(self, prefix="tmp") -> str:
         self._counter[0] += 1
         return f"{prefix}{self._counter[0]}"
