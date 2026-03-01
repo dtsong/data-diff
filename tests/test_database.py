@@ -62,6 +62,12 @@ class TestConnect(unittest.TestCase):
         self.assertRaises(ValueError, connect, "snowflake://user:pass@foo/bar/TEST1")
         self.assertRaises(ValueError, connect, "snowflake://user:pass@foo/bar/TEST1?warehouse=ha&schema=dup")
 
+    def test_databricks_uri_rejects_username(self):
+        self.assertRaises(ValueError, connect, "databricks://user:token@host/path")
+
+    def test_snowflake_uri_rejects_port(self):
+        self.assertRaises(ValueError, connect, "snowflake://user:pass@account:443/db/schema")
+
 
 @test_each_database
 class TestQueries(unittest.TestCase):

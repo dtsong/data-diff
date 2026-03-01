@@ -67,14 +67,14 @@ uv run ruff check .
 Use Docker Compose to spin up test databases:
 
 ```bash
-docker-compose up -d mysql postgres
+docker compose up -d mysql postgres
 ```
 
 Update `TEST_*_CONN_STRING` values in `tests/local_settings.py` (git-ignored) if your setup differs from the defaults.
 
 ### Implementing a New Database
 
-Add a new module in `data_diff/databases/`. If possible, include the database in `docker-compose.yml` and update CI configuration.
+Add a new module in `data_diff/databases/`. If possible, include the database in `docker-compose.yml` (or `compose.yaml`) and update CI configuration.
 
 Guide: https://data-diff.readthedocs.io/en/latest/new-database-driver-guide.html
 

@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from data_diff.config import ConfigParseError, apply_config_from_string
@@ -67,7 +65,7 @@ def test_remove_password():
         assert removed == expected
 
 
-def test_embed_env():
+def test_embed_env(monkeypatch):
     env = {
         "DRIVER": "postgresql",
         "USER": "postgres",
@@ -98,7 +96,8 @@ def test_embed_env():
         2.threads = 22
     """
 
-    os.environ.update(env)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
     res = apply_config_from_string(config, "pg_pg", {})
     assert res["update_column"] == ""  # missing env var
     assert res["verbose"] is True

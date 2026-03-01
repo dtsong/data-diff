@@ -26,4 +26,4 @@ def duckdb_file_connection(tmp_path):
     filepath = str(tmp_path / f"{uuid.uuid4()}.duckdb")
     conn = duckdb_mod.DuckDB(filepath=filepath)
     yield conn
-    # Cleanup handled by tmp_path
+    conn.close()

@@ -175,7 +175,7 @@ click.Context.formatter_class = MyHelpFormatter
 @click.option(
     "--assume-unique-key",
     is_flag=True,
-    help="Skip validating the uniqueness of the key column during joindiff, which is costly in non-cloud dbs.",
+    help="Skip validating the uniqueness of the key column during joindiff, which is costly on large tables.",
 )
 @click.option(
     "--sample-exclusive-rows",

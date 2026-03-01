@@ -103,8 +103,8 @@ def diff_tables(
         bisection_threshold (Number): Minimal row count of segment to bisect, otherwise download
                                       and compare locally. (Used when algorithm is `HASHDIFF`).
         validate_unique_key (bool): Enable/disable validating that the key columns are unique. (used for `JOINDIFF`. default: True)
-                                    Single query, and can't be threaded, so it's very slow on non-cloud dbs.
-                                    Future versions will detect UNIQUE constraints in the schema.
+                                    Single query, and can't be threaded, so it's slow on large tables.
+                                    A future enhancement could detect UNIQUE constraints in the schema.
         sample_exclusive_rows (bool): Enable/disable sampling of exclusive rows. Creates a temporary table. (used for `JOINDIFF`. default: False)
         materialize_to_table (Union[str, DbPath], optional): Path of new table to write diff results to. Disabled if not provided. Used for `JOINDIFF`.
         materialize_all_rows (bool): Materialize every row, not just those that are different. (used for `JOINDIFF`. default: False)

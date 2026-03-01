@@ -6,7 +6,7 @@
 
 > **Note:** This project is maintained by the community after Datafold sunset the project in May 2024.
 
-**data-diff** is an open-source CLI and Python library for efficiently comparing data across 14+ database engines. It uses bisection and checksumming to find differing rows without transferring entire tables, making it fast even on tables with millions of rows.
+**data-diff** is an open-source CLI and Python library for efficiently comparing data across 13+ database engines. It uses bisection and checksumming to find differing rows without transferring entire tables, making it fast even on tables with millions of rows.
 
 ## Installation
 
