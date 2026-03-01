@@ -357,7 +357,7 @@ def _set_age(options: dict, min_age: str | None, max_age: str | None, db: Databa
             if min_age:
                 options["max_update"] = parse_time_before(now, min_age)
         except ParseError as e:
-            logging.error(f"Error while parsing age expression: {e}")
+            raise click.BadParameter(f"Error while parsing age expression: {e}") from e
 
 
 def _get_table_differ(

@@ -52,7 +52,7 @@ def try_set_dbt_flags() -> None:
         from dbt.flags import set_flags
 
         set_flags(Namespace(MACRO_DEBUGGING=False))
-    except:
+    except Exception:
         pass
 
 

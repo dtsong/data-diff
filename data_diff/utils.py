@@ -470,8 +470,6 @@ def dbt_diff_string_template(
     rows_unchanged: int,
     extra_info_dict: dict,
     extra_info_str: str,
-    is_cloud: bool | None = False,
-    deps_impacts: dict | None = None,
 ) -> str:
     # main table
     main_rows = [
@@ -488,18 +486,11 @@ def dbt_diff_string_template(
     # diffs table
     diffs_rows = sorted(list(extra_info_dict.items()))
 
-    diffs_headers = ["columns", "% diff values" if is_cloud else "# diff values"]
+    diffs_headers = ["columns", "# diff values"]
     diffs_table = tabulate(diffs_rows, headers=diffs_headers)
 
-    # deps impacts table
-    deps_impacts_table = ""
-    if deps_impacts:
-        deps_impacts_rows = list(deps_impacts.items())
-        deps_impacts_headers = ["deps", "# data assets"]
-        deps_impacts_table = f"\n\n{tabulate(deps_impacts_rows, headers=deps_impacts_headers)}"
-
     # combine all tables
-    string_output = f"\n{main_table}\n\n{diffs_table}{deps_impacts_table}"
+    string_output = f"\n{main_table}\n\n{diffs_table}"
 
     return string_output
 

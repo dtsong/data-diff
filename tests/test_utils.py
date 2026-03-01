@@ -175,11 +175,7 @@ Unchanged          5
 
 columns    # diff values
 ---------  ---------------
-info       values
-
-deps    # data assets
-------  ---------------
-dep     assets"""
+info       values"""
 
     output = dbt_diff_string_template(
         total_rows_table1=10,
@@ -191,8 +187,6 @@ dep     assets"""
         rows_unchanged=5,
         extra_info_dict={"info": "values"},
         extra_info_str="extra info",
-        is_cloud=False,
-        deps_impacts={"dep": "assets"},
     )
 
     assert output == expected_output
