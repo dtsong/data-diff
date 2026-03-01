@@ -15,7 +15,6 @@ from rich.logging import RichHandler
 from data_diff import Database, DbPath
 from data_diff.config import apply_config_from_file
 from data_diff.databases._connect import connect
-from data_diff.dbt import dbt_diff
 from data_diff.diff_tables import Algorithm, TableDiffer
 from data_diff.hashdiff_tables import HashDiffer, DEFAULT_BISECTION_THRESHOLD, DEFAULT_BISECTION_FACTOR
 from data_diff.joindiff_tables import TABLE_WRITE_LIMIT, JoinDiffer
@@ -312,6 +311,8 @@ def main(conf, run, **kw) -> None:
         if project_dir_override:
             project_dir_override = os.path.expanduser(project_dir_override)
         if kw["dbt"]:
+            from data_diff.dbt import dbt_diff
+
             dbt_diff(
                 log_status_handler=log_handlers.get("log_status_handler"),
                 profiles_dir_override=profiles_dir_override,
@@ -393,7 +394,8 @@ def _get_table_differ(
             ),
         )
 
-    assert algorithm == Algorithm.HASHDIFF
+    if algorithm != Algorithm.HASHDIFF:
+        raise ValueError(f"Unsupported algorithm: {algorithm!r}. Expected Algorithm.HASHDIFF.")
     return HashDiffer(
         bisection_factor=DEFAULT_BISECTION_FACTOR if bisection_factor is None else bisection_factor,
         bisection_threshold=DEFAULT_BISECTION_THRESHOLD if bisection_threshold is None else bisection_threshold,
@@ -453,7 +455,8 @@ def _get_threads(threads: Union[int, str, None], threads1: Optional[int], thread
     if threads is None:
         threads = 1
     elif isinstance(threads, str) and threads.lower() == "serial":
-        assert not (threads1 or threads2)
+        if threads1 or threads2:
+            raise ValueError("Cannot specify per-table thread counts when using 'serial' mode.")
         threaded = False
         threads = 1
     else:
@@ -590,7 +593,8 @@ def _data_diff(
         diff_iter = differ.diff_tables(*segments)
 
         if limit:
-            assert not stats
+            if stats:
+                raise ValueError("Cannot use --limit together with --stats.")
             diff_iter = islice(diff_iter, int(limit))
 
         _print_result(stats, json_output, diff_iter)

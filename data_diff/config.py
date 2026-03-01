@@ -1,7 +1,15 @@
 import re
 import os
+import sys
 from typing import Any, Dict
-import toml
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        import tomli as tomllib
 
 
 _ARRAY_FIELDS = (
@@ -73,7 +81,8 @@ def _apply_config(config: Dict[str, Any], run_name: str, kw: Dict[str, Any]):
                     f"Database '{database}' not found in list of databases. Available: {list(databases)}."
                 )
             database = dict(databases[database])
-            assert isinstance(database, dict)
+            if not isinstance(database, dict):
+                raise TypeError(f"Database configuration must be a dict, got {type(database).__name__!r}.")
             if "driver" not in database:
                 raise ConfigParseError(f"Database '{database}' did not specify a driver.")
 
@@ -119,9 +128,9 @@ def _replace_match(match: re.Match) -> str:
 
 
 def apply_config_from_file(path: str, run_name: str, kw: Dict[str, Any]):
-    with open(path) as f:
-        return _apply_config(toml.load(f), run_name, kw)
+    with open(path, "rb") as f:
+        return _apply_config(tomllib.load(f), run_name, kw)
 
 
 def apply_config_from_string(toml_config: str, run_name: str, kw: Dict[str, Any]):
-    return _apply_config(toml.loads(toml_config), run_name, kw)
+    return _apply_config(tomllib.loads(toml_config), run_name, kw)

@@ -4,9 +4,18 @@ from itertools import zip_longest
 from contextlib import suppress
 import weakref
 
+import sys
+
 import attrs
 import dsnparse
-import toml
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        import tomli as tomllib
 
 from typing_extensions import Self
 
@@ -146,8 +155,8 @@ class Connect:
             database = dsn.fragment
             if not database:
                 raise ValueError("Must specify a database name, e.g. 'toml://path#database'. ")
-            with open(toml_path) as f:
-                config = toml.load(f)
+            with open(toml_path, "rb") as f:
+                config = tomllib.load(f)
             try:
                 conn_dict = config["database"][database]
             except KeyError:
