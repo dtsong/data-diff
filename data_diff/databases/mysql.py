@@ -1,32 +1,30 @@
-from typing import Any, ClassVar, Dict, Type, Union
+from typing import Any, ClassVar
 
 import attrs
 
 from data_diff.abcs.database_types import (
-    Datetime,
-    Timestamp,
-    Float,
-    Decimal,
-    Integer,
-    Text,
-    TemporalType,
-    FractionalType,
-    ColType_UUID,
     Boolean,
+    ColType_UUID,
     Date,
+    Datetime,
+    Decimal,
+    Float,
+    FractionalType,
+    Integer,
+    TemporalType,
+    Text,
+    Timestamp,
 )
 from data_diff.databases.base import (
-    ThreadedDatabase,
-    import_helper,
-    ConnectError,
-    BaseDialect,
-    ThreadLocalInterpreter,
-)
-from data_diff.databases.base import (
-    MD5_HEXDIGITS,
     CHECKSUM_HEXDIGITS,
-    TIMESTAMP_PRECISION_POS,
     CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
+    TIMESTAMP_PRECISION_POS,
+    BaseDialect,
+    ConnectError,
+    ThreadedDatabase,
+    ThreadLocalInterpreter,
+    import_helper,
 )
 
 
@@ -100,7 +98,7 @@ class Dialect(BaseDialect):
         return "SET @@session.time_zone='+00:00'"
 
     def md5_as_int(self, s: str) -> str:
-        return f"conv(substring(md5({s}), {1+MD5_HEXDIGITS-CHECKSUM_HEXDIGITS}), 16, 10) - {CHECKSUM_OFFSET}"
+        return f"conv(substring(md5({s}), {1 + MD5_HEXDIGITS - CHECKSUM_HEXDIGITS}), 16, 10) - {CHECKSUM_OFFSET}"
 
     def md5_as_hex(self, s: str) -> str:
         return f"md5({s})"
@@ -110,7 +108,9 @@ class Dialect(BaseDialect):
             return self.to_string(f"cast( cast({value} as datetime({coltype.precision})) as datetime(6))")
 
         s = self.to_string(f"cast({value} as datetime(6))")
-        return f"RPAD(RPAD({s}, {TIMESTAMP_PRECISION_POS+coltype.precision}, '.'), {TIMESTAMP_PRECISION_POS+6}, '0')"
+        return (
+            f"RPAD(RPAD({s}, {TIMESTAMP_PRECISION_POS + coltype.precision}, '.'), {TIMESTAMP_PRECISION_POS + 6}, '0')"
+        )
 
     def normalize_number(self, value: str, coltype: FractionalType) -> str:
         return self.to_string(f"cast({value} as decimal(38, {coltype.precision}))")
@@ -121,13 +121,13 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class MySQL(ThreadedDatabase):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     SUPPORTS_ALPHANUMS = False
     SUPPORTS_UNIQUE_CONSTAINT = True
     CONNECT_URI_HELP = "mysql://<user>:<password>@<host>/<database>"
     CONNECT_URI_PARAMS = ["database?"]
 
-    _args: Dict[str, Any]
+    _args: dict[str, Any]
 
     def __init__(self, *, thread_count, **kw) -> None:
         super().__init__(thread_count=thread_count)
@@ -150,7 +150,7 @@ class MySQL(ThreadedDatabase):
                 raise ConnectError("Database does not exist") from e
             raise ConnectError(*e.args) from e
 
-    def _query_in_worker(self, sql_code: Union[str, ThreadLocalInterpreter]):
+    def _query_in_worker(self, sql_code: str | ThreadLocalInterpreter):
         "This method runs in a worker thread"
         if self._init_error:
             raise self._init_error

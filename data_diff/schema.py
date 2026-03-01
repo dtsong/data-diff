@@ -1,10 +1,11 @@
 import logging
-from typing import Any, Collection, Iterator, Optional
+from collections.abc import Collection, Iterator
+from typing import Any
 
 import attrs
 
-from data_diff.utils import CaseAwareMapping, CaseInsensitiveDict, CaseSensitiveDict
 from data_diff.abcs.database_types import DbPath
+from data_diff.utils import CaseAwareMapping, CaseInsensitiveDict, CaseSensitiveDict
 
 logger = logging.getLogger("schema")
 
@@ -22,10 +23,10 @@ class RawColumnInfo(Collection[Any]):
 
     column_name: str
     data_type: str
-    datetime_precision: Optional[int] = None
-    numeric_precision: Optional[int] = None
-    numeric_scale: Optional[int] = None
-    collation_name: Optional[str] = None
+    datetime_precision: int | None = None
+    numeric_precision: int | None = None
+    numeric_scale: int | None = None
+    collation_name: str | None = None
 
     # It was a tuple once, so we keep it backward compatible temporarily, until remade to classes.
     def __iter__(self) -> Iterator[Any]:
@@ -47,6 +48,6 @@ def create_schema(db_name: str, table_path: DbPath, schema: dict, case_sensitive
         return CaseSensitiveDict(schema)
 
     if len({k.lower() for k in schema}) < len(schema):
-        logger.warning(f'Ambiguous schema for {db_name}:{".".join(table_path)} | Columns = {", ".join(list(schema))}')
+        logger.warning(f"Ambiguous schema for {db_name}:{'.'.join(table_path)} | Columns = {', '.join(list(schema))}")
         logger.warning("We recommend to disable case-insensitivity (set --case-sensitive).")
     return CaseInsensitiveDict(schema)

@@ -1,25 +1,24 @@
 import json
 import logging
 import math
+import operator
 import re
 import string
 from abc import abstractmethod
-from typing import Any, Dict, Iterable, Iterator, List, MutableMapping, Optional, Sequence, TypeVar, Union
-from urllib.parse import urlparse
-import operator
-import threading
+from collections.abc import Iterable, Iterator, MutableMapping, Sequence
 from datetime import datetime
+from typing import Any, TypeVar
+from urllib.parse import urlparse
 from uuid import UUID
 
 import attrs
-from packaging.version import parse as parse_version
 import requests
+from packaging.version import parse as parse_version
+from rich.status import Status
 from tabulate import tabulate
 from typing_extensions import Self
 
 from data_diff.version import __version__
-from rich.status import Status
-
 
 # -- Common --
 
@@ -58,7 +57,7 @@ def is_uuid(u: str) -> bool:
     return True
 
 
-def match_regexps(regexps: Dict[str, Any], s: str) -> Sequence[tuple]:
+def match_regexps(regexps: dict[str, Any], s: str) -> Sequence[tuple]:
     for regexp, v in regexps.items():
         m = re.match(regexp + "$", s)
         if m:
@@ -128,13 +127,14 @@ class ArithString:
     def new(cls, *args, **kw) -> Self:
         return cls(*args, **kw)
 
-    def range(self, other: "ArithString", count: int) -> List[Self]:
-        assert isinstance(other, ArithString)
+    def range(self, other: "ArithString", count: int) -> list[Self]:
+        if not isinstance(other, ArithString):
+            raise TypeError(f"Expected ArithString, got {type(other).__name__!r}.")
         checkpoints = split_space(self.int, other.int, count)
         return [self.new(int=i) for i in checkpoints]
 
 
-def _any_to_uuid(v: Union[str, int, UUID, "ArithUUID"]) -> UUID:
+def _any_to_uuid(v: "str | int | UUID | ArithUUID") -> UUID:
     if isinstance(v, ArithUUID):
         return v.uuid
     elif isinstance(v, UUID):
@@ -152,11 +152,12 @@ class ArithUUID(ArithString):
     "A UUID that supports basic arithmetic (add, sub)"
 
     uuid: UUID = attrs.field(converter=_any_to_uuid)
-    lowercase: Optional[bool] = None
-    uppercase: Optional[bool] = None
+    lowercase: bool | None = None
+    uppercase: bool | None = None
 
-    def range(self, other: "ArithUUID", count: int) -> List[Self]:
-        assert isinstance(other, ArithUUID)
+    def range(self, other: "ArithUUID", count: int) -> list[Self]:
+        if not isinstance(other, ArithUUID):
+            raise TypeError(f"Expected ArithUUID, got {type(other).__name__!r}.")
         checkpoints = split_space(self.uuid.int, other.uuid.int, count)
         return [attrs.evolve(self, uuid=i) for i in checkpoints]
 
@@ -168,7 +169,7 @@ class ArithUUID(ArithString):
             return attrs.evolve(self, uuid=self.uuid.int + other)
         return NotImplemented
 
-    def __sub__(self, other: Union["ArithUUID", int]):
+    def __sub__(self, other: "ArithUUID | int"):
         if isinstance(other, int):
             return attrs.evolve(self, uuid=self.uuid.int - other)
         elif isinstance(other, ArithUUID):
@@ -238,7 +239,7 @@ def alphanums_to_numbers(s1: str, s2: str):
 @attrs.define(frozen=True, eq=False, order=False, repr=False)
 class ArithAlphanumeric(ArithString):
     _str: str
-    _max_len: Optional[int] = None
+    _max_len: int | None = None
 
     def __attrs_post_init__(self) -> None:
         if self._str is None:
@@ -266,7 +267,7 @@ class ArithAlphanumeric(ArithString):
     def __repr__(self) -> str:
         return f'alphanum"{self._str}"'
 
-    def __add__(self, other: "Union[ArithAlphanumeric, int]") -> Self:
+    def __add__(self, other: "ArithAlphanumeric | int") -> Self:
         if isinstance(other, int):
             if other != 1:
                 raise NotImplementedError("not implemented for arbitrary numbers")
@@ -275,13 +276,14 @@ class ArithAlphanumeric(ArithString):
 
         return NotImplemented
 
-    def range(self, other: "ArithAlphanumeric", count: int) -> List[Self]:
-        assert isinstance(other, ArithAlphanumeric)
+    def range(self, other: "ArithAlphanumeric", count: int) -> list[Self]:
+        if not isinstance(other, ArithAlphanumeric):
+            raise TypeError(f"Expected ArithAlphanumeric, got {type(other).__name__!r}.")
         n1, n2 = alphanums_to_numbers(self._str, other._str)
         split = split_space(n1, n2, count)
         return [self.new(numberToAlphanum(s)) for s in split]
 
-    def __sub__(self, other: "Union[ArithAlphanumeric, int]") -> float:
+    def __sub__(self, other: "ArithAlphanumeric | int") -> float:
         if isinstance(other, ArithAlphanumeric):
             n1, n2 = alphanums_to_numbers(self._str, other._str)
             return n1 - n2
@@ -312,15 +314,16 @@ def number_to_human(n):
     n = float(n)
     millidx = max(
         0,
-        min(len(millnames) - 1, int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))),
+        min(len(millnames) - 1, math.floor(0 if n == 0 else math.log10(abs(n)) / 3)),
     )
 
-    return "{:.0f}{}".format(n / 10 ** (3 * millidx), millnames[millidx])
+    return f"{n / 10 ** (3 * millidx):.0f}{millnames[millidx]}"
 
 
-def split_space(start, end, count) -> List[int]:
+def split_space(start, end, count) -> list[int]:
     size = end - start
-    assert count <= size, (count, size)
+    if count > size:
+        raise ValueError(f"count ({count}) must not exceed size ({size}).")
     return list(range(start, end, (size + 1) // (count + 1)))[1 : count + 1]
 
 
@@ -382,13 +385,6 @@ def accumulate(iterable, func=operator.add, *, initial=None):
         yield total
 
 
-def run_as_daemon(threadfunc, *args):
-    th = threading.Thread(target=threadfunc, args=args)
-    th.daemon = True
-    th.start()
-    return th
-
-
 def getLogger(name):
     return logging.getLogger(name.rsplit(".", 1)[-1])
 
@@ -400,12 +396,7 @@ def eval_name_template(name):
     return re.sub("%t", get_timestamp, name)
 
 
-def truncate_error(error: str):
-    first_line = error.split("\n", 1)[0]
-    return re.sub("'(.*?)'", "'***'", first_line)
-
-
-def get_from_dict_with_raise(dictionary: Dict, key: str, exception: Exception):
+def get_from_dict_with_raise(dictionary: dict, key: str, exception: Exception):
     if dictionary is None:
         raise exception
     result = dictionary.get(key)
@@ -464,10 +455,8 @@ def dbt_diff_string_template(
     rows_removed: int,
     rows_updated: int,
     rows_unchanged: int,
-    extra_info_dict: Dict,
+    extra_info_dict: dict,
     extra_info_str: str,
-    is_cloud: Optional[bool] = False,
-    deps_impacts: Optional[Dict] = None,
 ) -> str:
     # main table
     main_rows = [
@@ -482,20 +471,13 @@ def dbt_diff_string_template(
     main_table = tabulate(main_rows, headers=main_headers)
 
     # diffs table
-    diffs_rows = sorted(list(extra_info_dict.items()))
+    diffs_rows = sorted(list(extra_info_dict.items())) if extra_info_dict else []
 
-    diffs_headers = ["columns", "% diff values" if is_cloud else "# diff values"]
+    diffs_headers = ["columns", "# diff values"]
     diffs_table = tabulate(diffs_rows, headers=diffs_headers)
 
-    # deps impacts table
-    deps_impacts_table = ""
-    if deps_impacts:
-        deps_impacts_rows = list(deps_impacts.items())
-        deps_impacts_headers = ["deps", "# data assets"]
-        deps_impacts_table = f"\n\n{tabulate(deps_impacts_rows, headers=deps_impacts_headers)}"
-
     # combine all tables
-    string_output = f"\n{main_table}\n\n{diffs_table}{deps_impacts_table}"
+    string_output = f"\n{main_table}\n\n{diffs_table}"
 
     return string_output
 

@@ -1,15 +1,11 @@
-from datetime import datetime
-from typing import List, Optional
 import unittest
+from datetime import datetime
 
 from data_diff.abcs.database_types import FractionalType, TemporalType
-from data_diff.databases.base import Database, BaseDialect
-from data_diff.utils import CaseInsensitiveDict, CaseSensitiveDict
-
-from data_diff.databases.base import Compiler, CompileError
-from data_diff.queries.api import outerjoin, cte, when, coalesce
+from data_diff.databases.base import BaseDialect, CompileError, Compiler, Database
+from data_diff.queries.api import coalesce, code, cte, outerjoin, table, this, when
 from data_diff.queries.ast_classes import Random
-from data_diff.queries.api import code, this, table
+from data_diff.utils import CaseInsensitiveDict, CaseSensitiveDict
 
 
 def normalize_spaces(s: str):
@@ -25,7 +21,7 @@ class MockDialect(BaseDialect):
     def quote(self, s: str) -> str:
         return s
 
-    def concat(self, l: List[str]) -> str:
+    def concat(self, l: list[str]) -> str:
         s = ", ".join(l)
         return f"concat({s})"
 
@@ -53,9 +49,9 @@ class MockDialect(BaseDialect):
     def limit_select(
         self,
         select_query: str,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
-        has_order_by: Optional[bool] = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        has_order_by: bool | None = None,
     ) -> str:
         x = offset and f"OFFSET {offset}", limit and f"LIMIT {limit}"
         result = " ".join(filter(None, x))

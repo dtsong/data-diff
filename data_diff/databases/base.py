@@ -1,42 +1,50 @@
 import abc
+import contextvars
+import decimal
 import functools
-import random
-from datetime import datetime
-import math
-import sys
 import logging
-from typing import (
-    Any,
-    Callable,
-    ClassVar,
-    Dict,
-    Generator,
-    Iterator,
-    NewType,
-    Tuple,
-    Optional,
-    Sequence,
-    Type,
-    List,
-    Union,
-    TypeVar,
-)
-from functools import partial, wraps
-from concurrent.futures import ThreadPoolExecutor
+import math
+import random
+import sys
 import threading
 from abc import abstractmethod
+from collections.abc import Callable, Generator, Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from functools import partial, wraps
+from typing import (
+    Any,
+    ClassVar,
+)
 from uuid import UUID
-import decimal
-import contextvars
 
 import attrs
 from typing_extensions import Self
 
 from data_diff.abcs.compiler import AbstractCompiler, Compilable
-from data_diff.queries.extras import ApplyFuncAndNormalizeAsString, Checksum, NormalizeAsString
-from data_diff.schema import RawColumnInfo
-from data_diff.utils import ArithString, ArithUUID, is_uuid, join_iter, safezip
-from data_diff.queries.api import Expr, table, Select, SKIP, Explain, Code, this
+from data_diff.abcs.database_types import (
+    JSON,
+    Array,
+    Boolean,
+    ColType,
+    ColType_UUID,
+    DbPath,
+    DbTime,
+    Decimal,
+    Float,
+    FractionalType,
+    Integer,
+    Native_UUID,
+    String_Alphanum,
+    String_UUID,
+    String_VaryingAlphanum,
+    Struct,
+    TemporalType,
+    Text,
+    TimestampTZ,
+    UnknownColType,
+)
+from data_diff.queries.api import SKIP, Code, Explain, Expr, Select, table
 from data_diff.queries.ast_classes import (
     Alias,
     BinOp,
@@ -53,7 +61,6 @@ from data_diff.queries.ast_classes import (
     DropTable,
     Func,
     GroupBy,
-    ITable,
     In,
     InsertToTable,
     IsDistinctFrom,
@@ -69,28 +76,9 @@ from data_diff.queries.ast_classes import (
     WhenThen,
     _ResolveColumn,
 )
-from data_diff.abcs.database_types import (
-    Array,
-    ColType_UUID,
-    FractionalType,
-    Struct,
-    ColType,
-    Integer,
-    Decimal,
-    Float,
-    Native_UUID,
-    String_UUID,
-    String_Alphanum,
-    String_VaryingAlphanum,
-    TemporalType,
-    UnknownColType,
-    TimestampTZ,
-    Text,
-    DbTime,
-    DbPath,
-    Boolean,
-    JSON,
-)
+from data_diff.queries.extras import ApplyFuncAndNormalizeAsString, Checksum, NormalizeAsString
+from data_diff.schema import RawColumnInfo
+from data_diff.utils import ArithString, ArithUUID, is_uuid, join_iter, safezip
 
 logger = logging.getLogger("database")
 cv_params = contextvars.ContextVar("params")
@@ -117,11 +105,11 @@ class Compiler(AbstractCompiler):
     in_select: bool = False  # Compilation runtime flag
     in_join: bool = False  # Compilation runtime flag
 
-    _table_context: List = attrs.field(factory=list)  # List[ITable]
-    _subqueries: Dict[str, Any] = attrs.field(factory=dict)  # XXX not thread-safe
+    _table_context: list = attrs.field(factory=list)  # List[ITable]
+    _subqueries: dict[str, Any] = attrs.field(factory=dict)  # XXX not thread-safe
     root: bool = True
 
-    _counter: List = attrs.field(factory=lambda: [0])
+    _counter: list = attrs.field(factory=lambda: [0])
 
     @property
     def dialect(self) -> "BaseDialect":
@@ -137,7 +125,7 @@ class Compiler(AbstractCompiler):
 
     def new_unique_table_name(self, prefix="tmp") -> DbPath:
         self._counter[0] += 1
-        table_name = f"{prefix}{self._counter[0]}_{'%x'%random.randrange(2**32)}"
+        table_name = f"{prefix}{self._counter[0]}_{'%x' % random.randrange(2**32)}"
         return self.database.dialect.parse_table_name(table_name)
 
     def add_table_context(self, *tables: Sequence, **kw) -> Self:
@@ -204,7 +192,7 @@ class ThreadLocalInterpreter:
                 break
 
 
-def apply_query(callback: Callable[[str], Any], sql_code: Union[str, ThreadLocalInterpreter]) -> list:
+def apply_query(callback: Callable[[str], Any], sql_code: str | ThreadLocalInterpreter) -> list:
     if isinstance(sql_code, ThreadLocalInterpreter):
         return sql_code.apply_queries(callback)
     else:
@@ -216,7 +204,7 @@ class BaseDialect(abc.ABC):
     SUPPORTS_PRIMARY_KEY: ClassVar[bool] = False
     SUPPORTS_INDEXES: ClassVar[bool] = False
     PREVENT_OVERFLOW_WHEN_CONCAT: ClassVar[bool] = False
-    TYPE_CLASSES: ClassVar[Dict[str, Type[ColType]]] = {}
+    TYPE_CLASSES: ClassVar[dict[str, type[ColType]]] = {}
     DEFAULT_NUMERIC_PRECISION: ClassVar[int] = 0  # effective precision when type is just "NUMERIC"
 
     PLACEHOLDER_TABLE = None  # Used for Oracle
@@ -258,7 +246,7 @@ class BaseDialect(abc.ABC):
             return self.render_coltype(attrs.evolve(compiler, root=False), elem)
         elif isinstance(elem, str):
             return f"'{elem}'"
-        elif isinstance(elem, (int, float)):
+        elif isinstance(elem, int | float):
             return str(elem)
         elif isinstance(elem, datetime):
             return self.timestamp_value(elem)
@@ -269,7 +257,7 @@ class BaseDialect(abc.ABC):
             return s.upper() if elem.uppercase else s.lower() if elem.lowercase else s
         elif isinstance(elem, ArithString):
             return f"'{elem}'"
-        assert False, elem
+        raise TypeError(f"Unsupported literal element type {type(elem).__name__!r}: {elem!r}")
 
     def render_compilable(self, c: Compiler, elem: Compilable) -> str:
         # All ifs are only for better code navigation, IDE usage detection, and type checking.
@@ -434,7 +422,8 @@ class BaseDialect(abc.ABC):
                 for expr in elem.exprs
             ]
 
-        assert items
+        if not items:
+            raise RuntimeError("No items to render for string concat/coalesce expression.")
         if len(items) == 1:
             return items[0]
 
@@ -466,7 +455,8 @@ class BaseDialect(abc.ABC):
         return f"WHEN {self.compile(c, elem.when)} THEN {self.compile(c, elem.then)}"
 
     def render_casewhen(self, c: Compiler, elem: CaseWhen) -> str:
-        assert elem.cases
+        if not elem.cases:
+            raise ValueError("CaseWhen expression must have at least one WHEN/THEN case.")
         when_thens = " ".join(self.compile(c, case) for case in elem.cases)
         else_expr = (" ELSE " + self.compile(c, elem.else_expr)) if elem.else_expr is not None else ""
         return f"CASE {when_thens}{else_expr} END"
@@ -523,7 +513,8 @@ class BaseDialect(abc.ABC):
             select += " GROUP BY " + ", ".join(map(compile_fn, elem.group_by_exprs))
 
         if elem.having_exprs:
-            assert elem.group_by_exprs
+            if not elem.group_by_exprs:
+                raise ValueError("HAVING clause requires a GROUP BY clause.")
             select += " HAVING " + " AND ".join(map(compile_fn, elem.having_exprs))
 
         if elem.order_by_exprs:
@@ -646,18 +637,19 @@ class BaseDialect(abc.ABC):
     def limit_select(
         self,
         select_query: str,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
-        has_order_by: Optional[bool] = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        has_order_by: bool | None = None,
     ) -> str:
         if offset:
             raise NotImplementedError("No support for OFFSET in query")
 
         return f"SELECT * FROM ({select_query}) AS LIMITED_SELECT LIMIT {limit}"
 
-    def concat(self, items: List[str]) -> str:
+    def concat(self, items: list[str]) -> str:
         "Provide SQL for concatenating a bunch of columns into a string"
-        assert len(items) > 1
+        if len(items) <= 1:
+            raise ValueError(f"concat() requires at least 2 items, got {len(items)}.")
         joined_exprs = ", ".join(items)
         return f"concat({joined_exprs})"
 
@@ -744,10 +736,7 @@ class BaseDialect(abc.ABC):
                 rounds=self.ROUNDS_ON_PREC_LOSS,
             )
 
-        elif issubclass(cls, Integer):
-            return cls()
-
-        elif issubclass(cls, Boolean):
+        elif issubclass(cls, Integer) or issubclass(cls, Boolean):
             return cls()
 
         elif issubclass(cls, Decimal):
@@ -763,7 +752,7 @@ class BaseDialect(abc.ABC):
                 )
             )
 
-        elif issubclass(cls, (JSON, Array, Struct, Text, Native_UUID)):
+        elif issubclass(cls, JSON | Array | Struct | Text | Native_UUID):
             return cls()
 
         raise TypeError(f"Parsing {info.data_type} returned an unknown type {cls!r}.")
@@ -899,14 +888,13 @@ class BaseDialect(abc.ABC):
         return f"/*+ {hints} */ "
 
 
-T = TypeVar("T", bound=BaseDialect)
 Row = Sequence[Any]
 
 
 @attrs.define(frozen=True)
 class QueryResult:
-    rows: List[Row]
-    columns: Optional[list] = None
+    rows: list[Row]
+    columns: list | None = None
 
     def __iter__(self) -> Iterator[Row]:
         return iter(self.rows)
@@ -927,13 +915,13 @@ class Database(abc.ABC):
     Instanciated using :meth:`~data_diff.connect`
     """
 
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = BaseDialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = BaseDialect
 
     SUPPORTS_ALPHANUMS: ClassVar[bool] = True
     SUPPORTS_UNIQUE_CONSTAINT: ClassVar[bool] = False
-    CONNECT_URI_KWPARAMS: ClassVar[List[str]] = []
+    CONNECT_URI_KWPARAMS: ClassVar[list[str]] = []
 
-    default_schema: Optional[str] = None
+    default_schema: str | None = None
     _interactive: bool = False
     is_closed: bool = False
     _dialect: BaseDialect = None
@@ -951,7 +939,7 @@ class Database(abc.ABC):
     def compile(self, sql_ast):
         return self.dialect.compile(Compiler(self), sql_ast)
 
-    def query(self, sql_ast: Union[Expr, Generator], res_type: type = None, log_message: Optional[str] = None):
+    def query(self, sql_ast: Expr | Generator, res_type: type = None, log_message: str | None = None):
         """Query the given SQL code/AST, and attempt to convert the result to type 'res_type'
 
         If given a generator, it will execute all the yielded sql queries with the same thread and cursor.
@@ -1012,12 +1000,13 @@ class Database(abc.ABC):
                 res = datetime.fromisoformat(res[:23])  # TODO use a better parsing method
             return res
         elif res_type is tuple:
-            assert len(res) == 1, (sql_code, res)
+            if len(res) != 1:
+                raise RuntimeError(f"Expected exactly 1 result row for tuple query, got {len(res)}: {sql_code!r}")
             return res[0]
         elif getattr(res_type, "__origin__", None) is list and len(res_type.__args__) == 1:
             if res_type.__args__ in ((int,), (str,)):
                 return [_one(row) for row in res]
-            elif res_type.__args__ in [(Tuple,), (tuple,)]:
+            elif res_type.__args__ == (tuple,):
                 return [tuple(row) for row in res]
             elif res_type.__args__ == (dict,):
                 return [dict(safezip(res.columns, row)) for row in res]
@@ -1038,7 +1027,7 @@ class Database(abc.ABC):
             f"WHERE table_name = '{name}' AND table_schema = '{schema}'"
         )
 
-    def query_table_schema(self, path: DbPath) -> Dict[str, RawColumnInfo]:
+    def query_table_schema(self, path: DbPath) -> dict[str, RawColumnInfo]:
         """Query the table for its schema for table in 'path', and return {column: tuple}
         where the tuple is (table_name, col_name, type_repr, datetime_precision?, numeric_precision?, numeric_scale?)
 
@@ -1062,7 +1051,11 @@ class Database(abc.ABC):
             for r in rows
         }
 
-        assert len(d) == len(rows)
+        if len(d) != len(rows):
+            raise RuntimeError(
+                f"Column info dict has {len(d)} entries but expected {len(rows)}. "
+                "Possible duplicate column names in query result."
+            )
         return d
 
     def select_table_unique_columns(self, path: DbPath) -> str:
@@ -1075,17 +1068,17 @@ class Database(abc.ABC):
             f"WHERE table_name = '{name}' AND table_schema = '{schema}'"
         )
 
-    def query_table_unique_columns(self, path: DbPath) -> List[str]:
+    def query_table_unique_columns(self, path: DbPath) -> list[str]:
         """Query the table for its unique columns for table in 'path', and return {column}"""
         if not self.SUPPORTS_UNIQUE_CONSTAINT:
             raise NotImplementedError("This database doesn't support 'unique' constraints")
-        res = self.query(self.select_table_unique_columns(path), List[str], log_message=path)
+        res = self.query(self.select_table_unique_columns(path), list[str], log_message=path)
         return list(res)
 
     def _process_table_schema(
         self,
         path: DbPath,
-        raw_schema: Dict[str, RawColumnInfo],
+        raw_schema: dict[str, RawColumnInfo],
         filter_columns: Sequence[str] = None,
         where: str = None,
     ):
@@ -1111,8 +1104,8 @@ class Database(abc.ABC):
         return col_dict
 
     def _refine_coltypes(
-        self, table_path: DbPath, col_dict: Dict[str, ColType], where: Optional[str] = None, sample_size=64
-    ) -> Dict[str, ColType]:
+        self, table_path: DbPath, col_dict: dict[str, ColType], where: str | None = None, sample_size=64
+    ) -> dict[str, ColType]:
         """Refine the types in the column dict, by querying the database for a sample of their values
 
         'where' restricts the rows to be sampled.
@@ -1139,7 +1132,8 @@ class Database(abc.ABC):
                         f"Mixed UUID/Non-UUID values detected in column {'.'.join(table_path)}.{col_name}, disabling UUID support."
                     )
                 else:
-                    assert col_name in col_dict
+                    if col_name not in col_dict:
+                        raise RuntimeError(f"Column {col_name!r} not found in col_dict when updating UUID type.")
                     col_dict[col_name] = String_UUID(
                         lowercase=all(s == s.lower() for s in uuid_samples),
                         uppercase=all(s == s.upper() for s in uuid_samples),
@@ -1154,7 +1148,10 @@ class Database(abc.ABC):
                             f"Mixed Alphanum/Non-Alphanum values detected in column {'.'.join(table_path)}.{col_name}. It cannot be used as a key."
                         )
                     else:
-                        assert col_name in col_dict
+                        if col_name not in col_dict:
+                            raise RuntimeError(
+                                f"Column {col_name!r} not found in col_dict when updating VaryingAlphanum type."
+                            )
                         col_dict[col_name] = String_VaryingAlphanum(collation=col_dict[col_name].collation)
 
         return col_dict
@@ -1168,7 +1165,8 @@ class Database(abc.ABC):
         raise ValueError(f"{self.name}: Bad table path for {self}: '{'.'.join(path)}'. Expected form: schema.table")
 
     def _query_cursor(self, c, sql_code: str) -> QueryResult:
-        assert isinstance(sql_code, str), sql_code
+        if not isinstance(sql_code, str):
+            raise TypeError(f"sql_code must be a str, got {type(sql_code).__name__!r}: {sql_code!r}")
         try:
             c.execute(sql_code)
             if sql_code.lower().startswith(("select", "explain", "show")):
@@ -1177,12 +1175,11 @@ class Database(abc.ABC):
                 fetched = c.fetchall()
                 result = QueryResult(fetched, columns)
                 return result
-        except Exception as _e:
-            # logger.exception(e)
-            # logger.error(f"Caused by SQL: {sql_code}")
+        except Exception:
+            logger.debug("SQL execution failed", exc_info=True)
             raise
 
-    def _query_conn(self, conn, sql_code: Union[str, ThreadLocalInterpreter]) -> QueryResult:
+    def _query_conn(self, conn, sql_code: str | ThreadLocalInterpreter) -> QueryResult:
         c = conn.cursor()
         callback = partial(self._query_cursor, c)
         return apply_query(callback, sql_code)
@@ -1206,7 +1203,7 @@ class Database(abc.ABC):
 
     @property
     @abstractmethod
-    def CONNECT_URI_PARAMS(self) -> List[str]:
+    def CONNECT_URI_PARAMS(self) -> list[str]:
         "List of parameters given in the path of the URI"
 
     @abstractmethod
@@ -1228,8 +1225,8 @@ class ThreadedDatabase(Database):
 
     thread_count: int = 1
 
-    _init_error: Optional[Exception] = None
-    _queue: Optional[ThreadPoolExecutor] = None
+    _init_error: Exception | None = None
+    _queue: ThreadPoolExecutor | None = None
     thread_local: threading.local = attrs.field(factory=threading.local)
 
     def __attrs_post_init__(self) -> None:
@@ -1237,17 +1234,19 @@ class ThreadedDatabase(Database):
         logger.info(f"[{self.name}] Starting a threadpool, size={self.thread_count}.")
 
     def set_conn(self):
-        assert not hasattr(self.thread_local, "conn")
+        if hasattr(self.thread_local, "conn"):
+            raise RuntimeError("Thread-local connection is already initialized; set_conn() called more than once.")
         try:
             self.thread_local.conn = self.create_connection()
         except Exception as e:
+            logger.error(f"Failed to create database connection: {type(e).__name__}: {e}")
             self._init_error = e
 
-    def _query(self, sql_code: Union[str, ThreadLocalInterpreter]) -> QueryResult:
+    def _query(self, sql_code: str | ThreadLocalInterpreter) -> QueryResult:
         r = self._queue.submit(self._query_in_worker, sql_code)
         return r.result()
 
-    def _query_in_worker(self, sql_code: Union[str, ThreadLocalInterpreter]):
+    def _query_in_worker(self, sql_code: str | ThreadLocalInterpreter):
         """This method runs in a worker thread"""
         if self._init_error:
             raise self._init_error

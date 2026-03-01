@@ -91,7 +91,7 @@ class TestDiffMesh(DiffTestCase):
         assert btable2.max_key[0].uppercase == True
 
         # This is what TableDiffer._bisect_and_diff_tables() does, precisely:
-        points = [list(sorted(p)) for p in safezip(min_key1, min_key2, max_key1, max_key2)]
+        points = [sorted(p) for p in safezip(min_key1, min_key2, max_key1, max_key2)]
         box_mesh = create_mesh_from_points(*points)
         new_regions = [(p1, p2) for p1, p2 in box_mesh if p1 < p2 and not (p1 >= min_key1 and p2 <= max_key1)]
         extra_tables = [

@@ -152,3 +152,6 @@ benchmark_*.png
 .history
 
 docker-compose-local.yml
+
+# Worktrees
+.worktrees/

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Documentation build configuration file, created by
 # sphinx-quickstart on Sun Aug 16 13:09:41 2020.

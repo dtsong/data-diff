@@ -1,15 +1,12 @@
-name: CI-COVER-VERSIONS
+name: CI
 
 on:
-#   push:
-#     paths:
-#       - '**.py'
-#       - '.github/workflows/**'
-#       - '!dev/**'
   pull_request:
-    branches: [ master ]
-
+    branches: [master]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   unit_tests:
@@ -18,57 +15,39 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - "3.8"
-          - "3.9"
           - "3.10"
           - "3.11"
+          - "3.12"
+          - "3.13"
 
-    name: Check Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Type check (non-blocking)
+        if: matrix.python-version == '3.10'
+        continue-on-error: true
+        run: uv tool run ty check --python-version 3.10
+
       - name: Build the stack
-        run: docker-compose up -d mysql postgres presto trino clickhouse vertica
+        run: docker compose up -d mysql postgres presto trino clickhouse vertica
 
-      - name: Install Poetry
-        run: pip install poetry
-
-      - name: Install package
-        run: "poetry install"
-
-      # BigQuery start
-    #   - id: 'auth'
-    #     uses: 'google-github-actions/auth@v1'
-    #     with:
-    #       credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
-
-    #   - name: 'Set up BigQuery Cloud SDK'
-    #     uses: 'google-github-actions/setup-gcloud@v1'
-
-    #   - name: 'Use gcloud CLI'
-    #     run: "gcloud config configurations list"
-
-      - name: "Install BigQuery for Python"
-        run: poetry add google-cloud-bigquery
-
-      # BigQuery end
-
-      - name: Run unit tests
+      - name: Run tests
         env:
-            DATADIFF_SNOWFLAKE_URI: '${{ secrets.DATADIFF_SNOWFLAKE_URI }}'
-            DATADIFF_PRESTO_URI: '${{ secrets.DATADIFF_PRESTO_URI }}'
-            DATADIFF_TRINO_URI: '${{ secrets.DATADIFF_TRINO_URI }}'
-            # DATADIFF_BIGQUERY_URI: '${{ secrets.DATADIFF_BIGQUERY_URI }}'
-            DATADIFF_CLICKHOUSE_URI: 'clickhouse://clickhouse:Password1@localhost:9000/clickhouse'
-            DATADIFF_VERTICA_URI: 'vertica://vertica:Password1@localhost:5433/vertica'
-            DATADIFF_REDSHIFT_URI: '${{ secrets.DATADIFF_REDSHIFT_URI }}'
-            MOTHERDUCK_TOKEN: '${{ secrets.MOTHERDUCK_TOKEN }}'
+          DATADIFF_CLICKHOUSE_URI: "clickhouse://clickhouse:Password1@localhost:9000/clickhouse"
+          DATADIFF_VERTICA_URI: "vertica://vertica:Password1@localhost:5433/vertica"
         run: |
           chmod +x tests/waiting_for_stack_up.sh
-          ./tests/waiting_for_stack_up.sh && TEST_ACROSS_ALL_DBS=0 poetry run unittest-parallel -j 16
+          ./tests/waiting_for_stack_up.sh && uv run pytest tests/

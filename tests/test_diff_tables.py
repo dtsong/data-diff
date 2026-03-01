@@ -1,20 +1,17 @@
-from datetime import datetime, timedelta
-from typing import Callable
-import uuid
 import unittest
+import uuid
+from collections.abc import Callable
+from datetime import datetime, timedelta
 
 import attrs
 
-from data_diff.queries.api import table, this, commit, code
-from data_diff.utils import ArithAlphanumeric, numberToAlphanum
-
+from data_diff import databases as db
 from data_diff.hashdiff_tables import HashDiffer
 from data_diff.joindiff_tables import JoinDiffer
-from data_diff.table_segment import TableSegment, split_space, Vector
-from data_diff import databases as db
-
-from tests.common import str_to_checksum, test_each_database_in_list, DiffTestCase, table_segment
-
+from data_diff.queries.api import commit, table, this
+from data_diff.table_segment import TableSegment, Vector, split_space
+from data_diff.utils import ArithAlphanumeric, numberToAlphanum
+from tests.common import DiffTestCase, str_to_checksum, table_segment, test_each_database_in_list
 
 TEST_DATABASES = {
     db.MySQL,
@@ -33,11 +30,11 @@ test_each_database: Callable = test_each_database_in_list(TEST_DATABASES)
 
 class TestUtils(unittest.TestCase):
     def test_split_space(self):
-        for i in range(0, 10):
+        for i in range(10):
             for j in range(1, 16328, 17):
                 for n in range(1, 32):
                     r = split_space(i, j + i + n, n)
-                    assert len(r) == n, f"split_space({i}, {j+n}, {n}) = {(r)}"
+                    assert len(r) == n, f"split_space({i}, {j + n}, {n}) = {(r)}"
 
 
 @test_each_database
@@ -149,7 +146,7 @@ class TestDiffTables(DiffTestCase):
         time = "2022-01-01 00:00:00.000000"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
         id_ = self.connection.query(
             [self.src_table.insert_row(1, 1, 1, 9, time_obj, columns=cols), commit, self.src_table.select(this.id)], int
         )
@@ -164,7 +161,7 @@ class TestDiffTables(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
         self.connection.query(
             [
                 self.src_table.insert_rows([[1, 1, 1, 9, time_obj], [2, 2, 2, 9, time_obj]], columns=cols),
@@ -187,7 +184,7 @@ class TestDiffTables(DiffTestCase):
 
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
         self.connection.query(
             [
                 self.src_table.insert_row(1, 1, 1, 9, time_obj, columns=cols),
@@ -203,7 +200,7 @@ class TestDiffTables(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -243,7 +240,7 @@ class TestDiffTables(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -263,7 +260,7 @@ class TestDiffTables(DiffTestCase):
         time_obj = datetime.fromisoformat(time)
         time_obj2 = datetime.fromisoformat(time2)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -513,7 +510,7 @@ class TestTableSegment(DiffTestCase):
     def test_case_awareness(self):
         src_table = table(self.table_src_path, schema={"id": int, "userid": int, "timestamp": datetime})
 
-        cols = "id userid timestamp".split()
+        cols = ["id", "userid", "timestamp"]
         time = "2022-01-01 00:00:00.000000"
         time_obj = datetime.fromisoformat(time)
 
@@ -623,7 +620,7 @@ class TestConcatMultipleColumnWithNulls(DiffTestCase):
         dst_values = []
 
         self.diffs = []
-        for i in range(0, 8):
+        for i in range(8):
             pk = uuid.uuid1(i)
             src_row = (str(pk), str(i), None)
             dst_row = (str(pk), str(i) + "-different", None)

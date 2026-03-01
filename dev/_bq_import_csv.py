@@ -19,7 +19,7 @@ with open("ratings.csv", "rb") as source_file:
 job.result()  # Waits for the job to complete.
 
 table = client.get_table(table_id)  # Make an API request.
-print("Loaded {} rows and {} columns to {}".format(table.num_rows, len(table.schema), table_id))
+print(f"Loaded {table.num_rows} rows and {len(table.schema)} columns to {table_id}")
 
 
 # run_sql("ALTER TABLE `datafold-dev-2.data_diff.Rating` ADD COLUMN id BYTES")

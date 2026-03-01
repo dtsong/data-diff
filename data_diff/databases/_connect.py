@@ -1,34 +1,33 @@
 import logging
-from typing import Hashable, MutableMapping, Type, Optional, Union, Dict
-from itertools import zip_longest
-from contextlib import suppress
 import weakref
+from collections.abc import Hashable, MutableMapping
+from contextlib import suppress
+from itertools import zip_longest
 
 import attrs
 import dsnparse
-import toml
-
 from typing_extensions import Self
 
+from data_diff._compat import tomllib
 from data_diff.databases.base import Database, ThreadedDatabase
-from data_diff.databases.postgresql import PostgreSQL
-from data_diff.databases.mysql import MySQL
-from data_diff.databases.oracle import Oracle
-from data_diff.databases.snowflake import Snowflake
 from data_diff.databases.bigquery import BigQuery
-from data_diff.databases.redshift import Redshift
-from data_diff.databases.presto import Presto
-from data_diff.databases.databricks import Databricks
-from data_diff.databases.trino import Trino
 from data_diff.databases.clickhouse import Clickhouse
-from data_diff.databases.vertica import Vertica
+from data_diff.databases.databricks import Databricks
 from data_diff.databases.duckdb import DuckDB
 from data_diff.databases.mssql import MsSQL
+from data_diff.databases.mysql import MySQL
+from data_diff.databases.oracle import Oracle
+from data_diff.databases.postgresql import PostgreSQL
+from data_diff.databases.presto import Presto
+from data_diff.databases.redshift import Redshift
+from data_diff.databases.snowflake import Snowflake
+from data_diff.databases.trino import Trino
+from data_diff.databases.vertica import Vertica
 
 
 @attrs.frozen
 class MatchUriPath:
-    database_cls: Type[Database]
+    database_cls: type[Database]
 
     def match_path(self, dsn):
         help_str = self.database_cls.CONNECT_URI_HELP
@@ -49,20 +48,22 @@ class MatchUriPath:
                     arg = dsn_dict.pop(param)
                 except KeyError:
                     if not optional:
-                        raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}")
+                        raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}") from None
 
                     arg = None
 
-            assert param and param not in matches
+            if not param or param in matches:
+                raise ValueError(f"Invalid or duplicate parameter '{param}' in URI parsing.")
             matches[param] = arg
 
         for param in kwparams:
             try:
                 arg = dsn_dict.pop(param)
             except KeyError:
-                raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}")
+                raise ValueError(f"URI must specify '{param}'. Expected format: {help_str}") from None
 
-            assert param and arg and param not in matches, (param, arg, matches.keys())
+            if not param or not arg or param in matches:
+                raise ValueError(f"Invalid or duplicate keyword parameter '{param}' in URI parsing.")
             matches[param] = arg
 
         for param, value in dsn_dict.items():
@@ -97,10 +98,10 @@ DATABASE_BY_SCHEME = {
 class Connect:
     """Provides methods for connecting to a supported database using a URL or connection dict."""
 
-    database_by_scheme: Dict[str, Database]
+    database_by_scheme: dict[str, Database]
     conn_cache: MutableMapping[Hashable, Database]
 
-    def __init__(self, database_by_scheme: Dict[str, Database] = DATABASE_BY_SCHEME) -> None:
+    def __init__(self, database_by_scheme: dict[str, Database] = DATABASE_BY_SCHEME) -> None:
         super().__init__()
         self.database_by_scheme = database_by_scheme
         self.conn_cache = weakref.WeakValueDictionary()
@@ -109,7 +110,7 @@ class Connect:
         database_by_scheme = {k: db for k, db in self.database_by_scheme.items() if k in dbs}
         return type(self)(database_by_scheme)
 
-    def connect_to_uri(self, db_uri: str, thread_count: Optional[int] = 1, **kwargs) -> Database:
+    def connect_to_uri(self, db_uri: str, thread_count: int | None = 1, **kwargs) -> Database:
         """Connect to the given database uri
 
         thread_count determines the max number of worker threads per database,
@@ -117,9 +118,9 @@ class Connect:
 
         Parameters:
             db_uri (str): The URI for the database to connect
-            thread_count (int, optional): Size of the threadpool. Ignored by cloud databases. (default: 1)
+            thread_count (int, optional): Size of the threadpool. Ignored by databases that don't use a thread pool (e.g. BigQuery, Snowflake, DuckDB). (default: 1)
 
-        Note: For non-cloud databases, a low thread-pool size may be a performance bottleneck.
+        Note: For thread-pooled databases, a low thread-pool size may be a performance bottleneck.
 
         Supported schemes:
         - postgresql
@@ -146,21 +147,22 @@ class Connect:
             database = dsn.fragment
             if not database:
                 raise ValueError("Must specify a database name, e.g. 'toml://path#database'. ")
-            with open(toml_path) as f:
-                config = toml.load(f)
+            with open(toml_path, "rb") as f:
+                config = tomllib.load(f)
             try:
                 conn_dict = config["database"][database]
             except KeyError:
-                raise ValueError(f"Cannot find database config named '{database}'.")
+                raise ValueError(f"Cannot find database config named '{database}'.") from None
             return self.connect_with_dict(conn_dict, thread_count, **kwargs)
 
         try:
             cls = self.database_by_scheme[scheme]
         except KeyError:
-            raise NotImplementedError(f"Scheme '{scheme}' currently not supported")
+            raise NotImplementedError(f"Scheme '{scheme}' currently not supported") from None
 
         if scheme == "databricks":
-            assert not dsn.user
+            if dsn.user:
+                raise ValueError("Databricks URI should not include a username; use access_token via password field.")
             kw = {}
             kw["access_token"] = dsn.password
             kw["http_path"] = dsn.path
@@ -180,7 +182,8 @@ class Connect:
 
             if scheme == "snowflake":
                 kw["account"] = dsn.host
-                assert not dsn.port
+                if dsn.port:
+                    raise ValueError("Snowflake URI should not include a port; use account name as host.")
                 kw["user"] = dsn.user
                 kw["password"] = dsn.password
             else:
@@ -208,7 +211,7 @@ class Connect:
         try:
             cls = self.database_by_scheme[driver]
         except KeyError:
-            raise NotImplementedError(f"Driver '{driver}' currently not supported")
+            raise NotImplementedError(f"Driver '{driver}' currently not supported") from None
 
         if issubclass(cls, ThreadedDatabase):
             db = cls(thread_count=thread_count, **d, **kwargs)
@@ -221,9 +224,7 @@ class Connect:
         "Nop function to be overridden by subclasses."
         return db
 
-    def __call__(
-        self, db_conf: Union[str, dict], thread_count: Optional[int] = 1, shared: bool = True, **kwargs
-    ) -> Database:
+    def __call__(self, db_conf: str | dict, thread_count: int | None = 1, shared: bool = True, **kwargs) -> Database:
         """Connect to a database using the given database configuration.
 
         Configuration can be given either as a URI string, or as a dict of {option: value}.
@@ -235,12 +236,12 @@ class Connect:
 
         Parameters:
             db_conf (str | dict): The configuration for the database to connect. URI or dict.
-            thread_count (int, optional): Size of the threadpool. Ignored by cloud databases. (default: 1)
+            thread_count (int, optional): Size of the threadpool. Ignored by databases that don't use a thread pool (e.g. BigQuery, Snowflake, DuckDB). (default: 1)
             shared (bool): Whether to cache and return the same connection for the same db_conf. (default: True)
             bigquery_credentials (google.oauth2.credentials.Credentials): Custom Google oAuth2 credential for BigQuery.
             (default: None)
 
-        Note: For non-cloud databases, a low thread-pool size may be a performance bottleneck.
+        Note: For thread-pooled databases, a low thread-pool size may be a performance bottleneck.
 
         Supported drivers:
         - postgresql
@@ -279,7 +280,7 @@ class Connect:
             self.conn_cache[cache_key] = conn
         return conn
 
-    def __make_cache_key(self, db_conf: Union[str, dict]) -> Hashable:
+    def __make_cache_key(self, db_conf: str | dict) -> Hashable:
         if isinstance(db_conf, dict):
             return tuple(db_conf.items())
         return db_conf

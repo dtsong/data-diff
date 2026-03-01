@@ -1,8 +1,8 @@
-import re
 import os
-from typing import Any, Dict
-import toml
+import re
+from typing import Any
 
+from data_diff._compat import tomllib
 
 _ARRAY_FIELDS = (
     "key_columns",
@@ -18,7 +18,7 @@ def is_uri(s: str) -> bool:
     return "://" in s
 
 
-def _apply_config(config: Dict[str, Any], run_name: str, kw: Dict[str, Any]):
+def _apply_config(config: dict[str, Any], run_name: str, kw: dict[str, Any]):
     _resolve_env(config)
 
     # Load config
@@ -53,10 +53,10 @@ def _apply_config(config: Dict[str, Any], run_name: str, kw: Dict[str, Any]):
     for index in "12":
         try:
             args = run_args.pop(index)
-        except KeyError:
+        except KeyError as e:
             raise ConfigParseError(
                 f"Could not find source #{index}: Expecting a key of '{index}' containing '.database' and '.table'."
-            )
+            ) from e
         for attr in ("database", "table"):
             if attr not in args:
                 raise ConfigParseError(f"Running 'run.{run_name}': Connection #{index} is missing attribute '{attr}'.")
@@ -73,7 +73,8 @@ def _apply_config(config: Dict[str, Any], run_name: str, kw: Dict[str, Any]):
                     f"Database '{database}' not found in list of databases. Available: {list(databases)}."
                 )
             database = dict(databases[database])
-            assert isinstance(database, dict)
+            if not isinstance(database, dict):
+                raise TypeError(f"Database configuration must be a dict, got {type(database).__name__!r}.")
             if "driver" not in database:
                 raise ConfigParseError(f"Database '{database}' did not specify a driver.")
 
@@ -99,7 +100,7 @@ def _apply_config(config: Dict[str, Any], run_name: str, kw: Dict[str, Any]):
 _ENV_VAR_PATTERN = r"\$\{([A-Za-z0-9_]+)\}"
 
 
-def _resolve_env(config: Dict[str, Any]) -> None:
+def _resolve_env(config: dict[str, Any]) -> None:
     """
     Resolve environment variables referenced as ${ENV_VAR_NAME}.
     Missing environment variables are replaced with an empty string.
@@ -118,10 +119,10 @@ def _replace_match(match: re.Match) -> str:
     return os.environ.get(referenced_var, "")
 
 
-def apply_config_from_file(path: str, run_name: str, kw: Dict[str, Any]):
-    with open(path) as f:
-        return _apply_config(toml.load(f), run_name, kw)
+def apply_config_from_file(path: str, run_name: str, kw: dict[str, Any]):
+    with open(path, "rb") as f:
+        return _apply_config(tomllib.load(f), run_name, kw)
 
 
-def apply_config_from_string(toml_config: str, run_name: str, kw: Dict[str, Any]):
-    return _apply_config(toml.loads(toml_config), run_name, kw)
+def apply_config_from_string(toml_config: str, run_name: str, kw: dict[str, Any]):
+    return _apply_config(tomllib.loads(toml_config), run_name, kw)

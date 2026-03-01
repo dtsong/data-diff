@@ -1,21 +1,17 @@
-from typing import List
 from datetime import datetime
 
 import attrs
 
-from data_diff.queries.ast_classes import TablePath
-from data_diff.queries.api import table, commit
-from data_diff.table_segment import TableSegment
 from data_diff import databases as db
 from data_diff.joindiff_tables import JoinDiffer
-
-from tests.test_diff_tables import DiffTestCase
-
+from data_diff.queries.api import commit, table
+from data_diff.queries.ast_classes import TablePath
+from data_diff.table_segment import TableSegment
 from tests.common import (
     random_table_suffix,
     test_each_database_in_list,
 )
-
+from tests.test_diff_tables import DiffTestCase
 
 TEST_DATABASES = {
     db.PostgreSQL,
@@ -47,7 +43,7 @@ class TestCompositeKey(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -93,7 +89,7 @@ class TestJoindiff(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -122,7 +118,7 @@ class TestJoindiff(DiffTestCase):
         self.assertEqual(expected, diff)
 
         t = TablePath(materialize_path)
-        rows = self.connection.query(t.select(), List[tuple])
+        rows = self.connection.query(t.select(), list[tuple])
         # is_xa, is_xb, is_diff1, is_diff2, row1, row2
         # assert rows == [(1, 0, 1, 1) + expected_row + (None, None)], rows
         assert rows == [(1, 0, 1, 1) + (expected_row[0], None, expected_row[1], None)], rows
@@ -132,7 +128,7 @@ class TestJoindiff(DiffTestCase):
         mdiffer = attrs.evolve(mdiffer, materialize_all_rows=True)
         diff = list(mdiffer.diff_tables(self.table, self.table2))
         self.assertEqual(expected, diff)
-        rows = self.connection.query(t.select(), List[tuple])
+        rows = self.connection.query(t.select(), list[tuple])
         assert len(rows) == 2, len(rows)
         self.connection.query(t.drop())
 
@@ -140,7 +136,7 @@ class TestJoindiff(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -179,7 +175,7 @@ class TestJoindiff(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -198,7 +194,7 @@ class TestJoindiff(DiffTestCase):
         time_obj = datetime.fromisoformat(time)
         time_obj2 = datetime.fromisoformat(time2)
 
-        cols = "id userid movieid rating timestamp".split()
+        cols = ["id", "userid", "movieid", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -241,7 +237,7 @@ class TestJoindiff(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id rating timestamp".split()
+        cols = ["id", "rating", "timestamp"]
 
         self.connection.query(
             [
@@ -257,7 +253,7 @@ class TestJoindiff(DiffTestCase):
         time = "2022-01-01 00:00:00"
         time_obj = datetime.fromisoformat(time)
 
-        cols = "id rating timestamp".split()
+        cols = ["id", "rating", "timestamp"]
 
         self.connection.query(
             [

@@ -1,9 +1,7 @@
-version: "3.8"
-
 services:
     postgres:
       container_name: dd-postgresql
-      image: postgres:14.1-alpine
+      image: postgres:16-alpine
       # work_mem: less tmp files
       # maintenance_work_mem: improve table-level op perf
       # max_wal_size: allow more time before merging to heap
@@ -23,13 +21,17 @@ services:
       tty: true
       networks:
         - local
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U postgres"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
 
     mysql:
       container_name: dd-mysql
-      image: mysql:oracle
+      image: mysql:8.4
       # fsync less aggressively for insertion perf for test setup
       command: >
-        --default-authentication-plugin=mysql_native_password
         --binlog-cache-size=16M
         --key_buffer_size=0
         --max_connections=1000
@@ -50,10 +52,15 @@ services:
       tty: true
       networks:
         - local
+      healthcheck:
+        test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
 
     clickhouse:
       container_name: dd-clickhouse
-      image: clickhouse/clickhouse-server:21.12.3.32
+      image: clickhouse/clickhouse-server:24.3
       restart: always
       volumes:
           - clickhouse-data:/var/lib/clickhouse:delegated
@@ -73,6 +80,11 @@ services:
       tty: true
       networks:
       - local
+      healthcheck:
+        test: ["CMD-SHELL", "wget --spider -q http://localhost:8123/ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
 
     # prestodb.dbapi.connect(host="127.0.0.1", user="presto").cursor().execute('SELECT * FROM system.runtime.nodes')
     presto:
@@ -90,7 +102,7 @@ services:
 
     trino:
         container_name: dd-trino
-        image: 'trinodb/trino:389'
+        image: 'trinodb/trino:439'
         hostname: trino
         ports:
             - '8081:8080'
@@ -98,10 +110,15 @@ services:
             - ./dev/trino-conf/etc:/etc/trino:ro
         networks:
             - local
+        healthcheck:
+            test: ["CMD", "trino", "--execute", "SELECT 1"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
     vertica:
       container_name: dd-vertica
-      image: vertica/vertica-ce:12.0.0-0
+      image: vertica/vertica-ce:24.1.0-0
       restart: always
       volumes:
           - vertica-data:/data:delegated
@@ -116,6 +133,11 @@ services:
       tty: true
       networks:
       - local
+      healthcheck:
+        test: ["CMD-SHELL", "/opt/vertica/bin/vsql -c \"SELECT 1\""]
+        interval: 10s
+        timeout: 5s
+        retries: 5
 
 
 

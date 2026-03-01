@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Any, Tuple, Union
+from typing import Any
 
 import attrs
 from typing_extensions import Self
@@ -8,19 +8,17 @@ from data_diff.table_segment import TableSegment
 
 @attrs.define(frozen=False)
 class SegmentInfo:
-    tables: List[TableSegment]
+    tables: list[TableSegment]
 
-    diff: Optional[List[Union[Tuple[Any, ...], List[Any]]]] = None
-    diff_schema: Optional[Tuple[Tuple[str, type], ...]] = None
-    is_diff: Optional[bool] = None
-    diff_count: Optional[int] = None
+    diff: list[tuple[Any, ...] | list[Any]] | None = None
+    diff_schema: tuple[tuple[str, type], ...] | None = None
+    is_diff: bool | None = None
+    diff_count: int | None = None
 
-    rowcounts: Dict[int, int] = attrs.field(factory=dict)
-    max_rows: Optional[int] = None
+    rowcounts: dict[int, int] = attrs.field(factory=dict)
+    max_rows: int | None = None
 
-    def set_diff(
-        self, diff: List[Union[Tuple[Any, ...], List[Any]]], schema: Optional[Tuple[Tuple[str, type]]] = None
-    ) -> None:
+    def set_diff(self, diff: list[tuple[Any, ...] | list[Any]], schema: tuple[tuple[str, type]] | None = None) -> None:
         self.diff_schema = schema
         self.diff = diff
         self.diff_count = len(diff)
@@ -28,7 +26,8 @@ class SegmentInfo:
 
     def update_from_children(self, child_infos) -> None:
         child_infos = list(child_infos)
-        assert child_infos
+        if not child_infos:
+            raise ValueError("update_from_children requires at least one child info.")
 
         # self.diff = list(chain(*[c.diff for c in child_infos]))
         self.diff_count = sum(c.diff_count for c in child_infos if c.diff_count is not None)
@@ -47,9 +46,9 @@ class InfoTree:
     SEGMENT_INFO_CLASS = SegmentInfo
 
     info: SegmentInfo
-    children: List["InfoTree"] = attrs.field(factory=list)
+    children: list["InfoTree"] = attrs.field(factory=list)
 
-    def add_node(self, table1: TableSegment, table2: TableSegment, max_rows: Optional[int] = None) -> Self:
+    def add_node(self, table1: TableSegment, table2: TableSegment, max_rows: int | None = None) -> Self:
         cls = self.__class__
         node = cls(cls.SEGMENT_INFO_CLASS([table1, table2], max_rows=max_rows))
         self.children.append(node)

@@ -1,18 +1,17 @@
-import os
-from numbers import Number
 import logging
+import os
 from collections import defaultdict
-from typing import Any, Collection, Dict, Iterator, List, Sequence, Set, Tuple
+from collections.abc import Collection, Iterator, Sequence
+from typing import Any, Literal
 
 import attrs
-from typing_extensions import Literal
 
-from data_diff.abcs.database_types import ColType_UUID, NumericType, PrecisionType, StringType, Boolean, JSON
-from data_diff.info_tree import InfoTree
-from data_diff.utils import safezip, diffs_are_equiv_jsons
-from data_diff.thread_utils import ThreadedYielder
-from data_diff.table_segment import TableSegment
+from data_diff.abcs.database_types import JSON, Boolean, NumericType, PrecisionType
 from data_diff.diff_tables import TableDiffer
+from data_diff.info_tree import InfoTree
+from data_diff.table_segment import TableSegment
+from data_diff.thread_utils import ThreadedYielder
+from data_diff.utils import diffs_are_equiv_jsons, safezip
 
 BENCHMARK = os.environ.get("BENCHMARK", False)
 
@@ -24,7 +23,7 @@ logger = logging.getLogger("hashdiff_tables")
 # Just for local readability: TODO: later switch to real type declarations of these.
 _Op = Literal["+", "-"]
 _PK = Sequence[Any]
-_Row = Tuple[Any]
+_Row = tuple[Any]
 
 
 def diff_sets(
@@ -40,8 +39,8 @@ def diff_sets(
     ignored_columns2: Collection[str],
 ) -> Iterator:
     # Group full rows by PKs on each side. The first items are the PK: TableSegment.relevant_columns
-    rows_by_pks1: Dict[_PK, List[_Row]] = defaultdict(list)
-    rows_by_pks2: Dict[_PK, List[_Row]] = defaultdict(list)
+    rows_by_pks1: dict[_PK, list[_Row]] = defaultdict(list)
+    rows_by_pks2: dict[_PK, list[_Row]] = defaultdict(list)
     for row in a:
         pk: _PK = tuple(val for col, val in zip(key_columns1, row))
         rows_by_pks1[pk].append(row)
@@ -50,12 +49,12 @@ def diff_sets(
         rows_by_pks2[pk].append(row)
 
     # Mind that the same pk MUST go in full with all the -/+ rows all at once, for grouping.
-    diffs_by_pks: Dict[_PK, List[Tuple[_Op, _Row]]] = defaultdict(list)
+    diffs_by_pks: dict[_PK, list[tuple[_Op, _Row]]] = defaultdict(list)
     for pk in sorted(set(rows_by_pks1) | set(rows_by_pks2)):
-        cutrows1: List[_Row] = [
+        cutrows1: list[_Row] = [
             tuple(val for col, val in zip(columns1, row1) if col not in ignored_columns1) for row1 in rows_by_pks1[pk]
         ]
-        cutrows2: List[_Row] = [
+        cutrows2: list[_Row] = [
             tuple(val for col, val in zip(columns2, row2) if col not in ignored_columns2) for row2 in rows_by_pks2[pk]
         ]
 
@@ -193,7 +192,8 @@ class HashDiffer(TableDiffer):
 
         (count1, checksum1), (count2, checksum2) = self._threaded_call("count_and_checksum", [table1, table2])
 
-        assert not info_tree.info.rowcounts
+        if info_tree.info.rowcounts:
+            raise RuntimeError("info_tree rowcounts already populated; expected empty at this point.")
         info_tree.info.rowcounts = {1: count1, 2: count2}
 
         if count1 == 0 and count2 == 0:
@@ -203,7 +203,10 @@ class HashDiffer(TableDiffer):
                 table1.min_key,
                 table1.max_key,
             )
-            assert checksum1 is None and checksum2 is None
+            if checksum1 is not None or checksum2 is not None:
+                raise RuntimeError(
+                    f"Expected both checksums to be None for empty segment, got: {checksum1!r}, {checksum2!r}"
+                )
             info_tree.info.is_diff = False
             return
 
@@ -223,7 +226,8 @@ class HashDiffer(TableDiffer):
         level=0,
         max_rows=None,
     ):
-        assert table1.is_bounded and table2.is_bounded
+        if not (table1.is_bounded and table2.is_bounded):
+            raise ValueError("Both table segments must be bounded (min_key and max_key must be set).")
 
         max_space_size = max(table1.approximate_size(), table2.approximate_size())
         if max_rows is None:

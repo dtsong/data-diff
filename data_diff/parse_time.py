@@ -26,7 +26,8 @@ TIME_UNITS = dict(
 )
 
 EXTRAPOLATED = {"months": (30, "days"), "years": (365, "days")}
-assert set(EXTRAPOLATED) <= set(TIME_UNITS)
+if not set(EXTRAPOLATED) <= set(TIME_UNITS):
+    raise RuntimeError("EXTRAPOLATED keys must be a subset of TIME_UNITS keys.")
 
 TIME_RE = re.compile(r"(\d+)([a-z]+)")
 
@@ -44,8 +45,8 @@ def parse_time_atom(count, unit):
     except KeyError:
         most_similar = max(TIME_UNITS, key=lambda k: string_similarity(k, unit))
         raise ParseError(
-            f"'{unit}' is not a recognized time unit. Did you mean '{most_similar}'?" f"\nSupported units: {UNITS_STR}"
-        )
+            f"'{unit}' is not a recognized time unit. Did you mean '{most_similar}'?\nSupported units: {UNITS_STR}"
+        ) from None
 
     if unit in EXTRAPOLATED:
         mul, unit = EXTRAPOLATED[unit]

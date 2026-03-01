@@ -1,31 +1,35 @@
-from typing import Any, ClassVar, Dict, List, Type
+from typing import Any, ClassVar
 from urllib.parse import unquote
+
 import attrs
 
 from data_diff.abcs.database_types import (
-    ColType,
-    DbPath,
     JSON,
+    Boolean,
+    ColType,
+    Date,
+    DbPath,
+    Decimal,
+    Float,
+    FractionalType,
+    Integer,
+    Native_UUID,
+    TemporalType,
+    Text,
+    Time,
     Timestamp,
     TimestampTZ,
-    Float,
-    Decimal,
-    Integer,
-    TemporalType,
-    Native_UUID,
-    Text,
-    FractionalType,
-    Boolean,
-    Date,
-    Time,
 )
-from data_diff.databases.base import BaseDialect, ThreadedDatabase, import_helper, ConnectError
 from data_diff.databases.base import (
-    MD5_HEXDIGITS,
-    CHECKSUM_HEXDIGITS,
     _CHECKSUM_BITSIZE,
-    TIMESTAMP_PRECISION_POS,
+    CHECKSUM_HEXDIGITS,
     CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
+    TIMESTAMP_PRECISION_POS,
+    BaseDialect,
+    ConnectError,
+    ThreadedDatabase,
+    import_helper,
 )
 
 SESSION_TIME_ZONE = None  # Changed by the tests
@@ -52,7 +56,7 @@ class PostgresqlDialect(BaseDialect):
     # https://www.postgresql.org/docs/current/datatype-numeric.html#DATATYPE-NUMERIC-TABLE
     DEFAULT_NUMERIC_PRECISION = 16383
 
-    TYPE_CLASSES: ClassVar[Dict[str, Type[ColType]]] = {
+    TYPE_CLASSES: ClassVar[dict[str, type[ColType]]] = {
         # Timestamps
         "timestamp with time zone": TimestampTZ,
         "timestamp without time zone": Timestamp,
@@ -85,7 +89,7 @@ class PostgresqlDialect(BaseDialect):
     def to_string(self, s: str):
         return f"{s}::varchar"
 
-    def concat(self, items: List[str]) -> str:
+    def concat(self, items: list[str]) -> str:
         joined_exprs = " || ".join(items)
         return f"({joined_exprs})"
 
@@ -105,19 +109,19 @@ class PostgresqlDialect(BaseDialect):
         return super().type_repr(t)
 
     def md5_as_int(self, s: str) -> str:
-        return f"('x' || substring(md5({s}), {1+MD5_HEXDIGITS-CHECKSUM_HEXDIGITS}))::bit({_CHECKSUM_BITSIZE})::bigint - {CHECKSUM_OFFSET}"
+        return f"('x' || substring(md5({s}), {1 + MD5_HEXDIGITS - CHECKSUM_HEXDIGITS}))::bit({_CHECKSUM_BITSIZE})::bigint - {CHECKSUM_OFFSET}"
 
     def md5_as_hex(self, s: str) -> str:
         return f"md5({s})"
 
     def normalize_timestamp(self, value: str, coltype: TemporalType) -> str:
         def _add_padding(coltype: TemporalType, timestamp6: str):
-            return f"RPAD(LEFT({timestamp6}, {TIMESTAMP_PRECISION_POS+coltype.precision}), {TIMESTAMP_PRECISION_POS+6}, '0')"
+            return f"RPAD(LEFT({timestamp6}, {TIMESTAMP_PRECISION_POS + coltype.precision}), {TIMESTAMP_PRECISION_POS + 6}, '0')"
 
         try:
             is_date = coltype.is_date
             is_time = coltype.is_time
-        except:
+        except AttributeError:
             is_date = False
             is_time = False
 
@@ -143,7 +147,7 @@ class PostgresqlDialect(BaseDialect):
             timestamp = f"least('{max_timestamp}'::timestamp(6), {value}::timestamp(6))"
             timestamp = f"greatest('{min_timestamp}'::timestamp(6), {timestamp})"
 
-            interval = format((0.5 * (10 ** (-coltype.precision))), f".{coltype.precision+1}f")
+            interval = format((0.5 * (10 ** (-coltype.precision))), f".{coltype.precision + 1}f")
 
             rounded_timestamp = (
                 f"left(to_char(least('{max_timestamp}'::timestamp, {timestamp})"
@@ -175,12 +179,12 @@ class PostgresqlDialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class PostgreSQL(ThreadedDatabase):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = PostgresqlDialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = PostgresqlDialect
     SUPPORTS_UNIQUE_CONSTAINT = True
     CONNECT_URI_HELP = "postgresql://<user>:<password>@<host>/<database>"
     CONNECT_URI_PARAMS = ["database?"]
 
-    _args: Dict[str, Any]
+    _args: dict[str, Any]
     _conn: Any
 
     def __init__(self, *, thread_count, **kw) -> None:
@@ -223,7 +227,7 @@ class PostgreSQL(ThreadedDatabase):
                             THEN coalesce(numeric_scale, {self.dialect.DEFAULT_NUMERIC_PRECISION})
                         ELSE numeric_scale
                     END AS numeric_scale
-                    FROM {'.'.join(info_schema_path)}
+                    FROM {".".join(info_schema_path)}
                     WHERE table_name = '{table}' AND table_schema = '{schema}'
             """
 

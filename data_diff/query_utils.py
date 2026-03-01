@@ -5,7 +5,7 @@ from contextlib import suppress
 from data_diff.abcs.database_types import DbPath
 from data_diff.databases.base import QueryError
 from data_diff.databases.oracle import Oracle
-from data_diff.queries.api import table, commit, Expr
+from data_diff.queries.api import Expr, commit, table
 
 
 def _drop_table_oracle(name: DbPath):
@@ -32,7 +32,8 @@ def drop_table(db, tbl) -> None:
 
 def _append_to_table_oracle(path: DbPath, expr: Expr):
     """See append_to_table"""
-    assert expr.schema, expr
+    if not expr.schema:
+        raise ValueError(f"Expression must have a schema set before appending to table. Got: {expr!r}")
     t = table(path, schema=expr.schema)
     with suppress(QueryError):
         yield t.create()  # uses expr.schema
@@ -43,7 +44,8 @@ def _append_to_table_oracle(path: DbPath, expr: Expr):
 
 def _append_to_table(path: DbPath, expr: Expr):
     """Append to table"""
-    assert expr.schema, expr
+    if not expr.schema:
+        raise ValueError(f"Expression must have a schema set before appending to table. Got: {expr!r}")
     t = table(path, schema=expr.schema)
     yield t.create(if_not_exists=True)  # uses expr.schema
     yield commit

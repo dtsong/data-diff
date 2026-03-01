@@ -16,8 +16,19 @@ jobs:
     if: contains(github.event.issue.labels.*.name, 'stale')
     runs-on: ubuntu-latest
     steps:
-      - name: initial labeling
-        uses: andymckay/labeler@master
+      - name: Update labels
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
-          add-labels: "triage"
-          remove-labels: "stale"
+          script: |
+            await github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['triage']
+            });
+            await github.rest.issues.removeLabel({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'stale'
+            });

@@ -1,33 +1,35 @@
-from typing import Any, ClassVar, Iterable, List, Dict, Tuple, Type
+import logging
+from collections.abc import Iterable
+from typing import Any, ClassVar
 
 import attrs
 
 from data_diff.abcs.database_types import (
-    ColType,
-    Float,
     JSON,
-    TemporalType,
-    FractionalType,
+    ColType,
     DbPath,
-    TimestampTZ,
+    Float,
+    FractionalType,
     Integer,
+    TimestampTZ,
 )
 from data_diff.databases.postgresql import (
-    BaseDialect,
-    PostgreSQL,
-    MD5_HEXDIGITS,
     CHECKSUM_HEXDIGITS,
     CHECKSUM_OFFSET,
-    TIMESTAMP_PRECISION_POS,
+    MD5_HEXDIGITS,
+    BaseDialect,
+    PostgreSQL,
     PostgresqlDialect,
 )
 from data_diff.schema import RawColumnInfo
+
+logger = logging.getLogger(__name__)
 
 
 @attrs.define(frozen=False)
 class Dialect(PostgresqlDialect):
     name = "Redshift"
-    TYPE_CLASSES: ClassVar[Dict[str, Type[ColType]]] = {
+    TYPE_CLASSES: ClassVar[dict[str, type[ColType]]] = {
         **PostgresqlDialect.TYPE_CLASSES,
         "double": Float,
         "real": Float,
@@ -37,7 +39,7 @@ class Dialect(PostgresqlDialect):
     }
     SUPPORTS_INDEXES = False
 
-    def concat(self, items: List[str]) -> str:
+    def concat(self, items: list[str]) -> str:
         joined_exprs = " || ".join(items)
         return f"({joined_exprs})"
 
@@ -46,11 +48,11 @@ class Dialect(PostgresqlDialect):
 
     def type_repr(self, t) -> str:
         if isinstance(t, TimestampTZ):
-            return f"timestamptz"
+            return "timestamptz"
         return super().type_repr(t)
 
     def md5_as_int(self, s: str) -> str:
-        return f"strtol(substring(md5({s}), {1+MD5_HEXDIGITS-CHECKSUM_HEXDIGITS}), 16)::decimal(38) - {CHECKSUM_OFFSET}"
+        return f"strtol(substring(md5({s}), {1 + MD5_HEXDIGITS - CHECKSUM_HEXDIGITS}), 16)::decimal(38) - {CHECKSUM_OFFSET}"
 
     def md5_as_hex(self, s: str) -> str:
         return f"md5({s})"
@@ -64,7 +66,7 @@ class Dialect(PostgresqlDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class Redshift(PostgreSQL):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "redshift://<user>:<password>@<host>/<database>"
     CONNECT_URI_PARAMS = ["database?"]
 
@@ -100,7 +102,7 @@ class Redshift(PostgreSQL):
             + db_clause
         )
 
-    def query_external_table_schema(self, path: DbPath) -> Dict[str, RawColumnInfo]:
+    def query_external_table_schema(self, path: DbPath) -> dict[str, RawColumnInfo]:
         rows = self.query(self.select_external_table_schema(path), list)
         if not rows:
             raise RuntimeError(f"{self.name}: Table '{'.'.join(path)}' does not exist, or has no columns")
@@ -111,11 +113,11 @@ class Redshift(PostgreSQL):
     def select_view_columns(self, path: DbPath) -> str:
         _, schema, table = self._normalize_table_path(path)
 
-        return """select * from pg_get_cols('{}.{}')
+        return f"""select * from pg_get_cols('{schema}.{table}')
                 cols(col_name name, col_type varchar)
-            """.format(schema, table)
+            """
 
-    def query_pg_get_cols(self, path: DbPath) -> Dict[str, RawColumnInfo]:
+    def query_pg_get_cols(self, path: DbPath) -> dict[str, RawColumnInfo]:
         rows = self.query(self.select_view_columns(path), list)
         if not rows:
             raise RuntimeError(f"{self.name}: View '{'.'.join(path)}' does not exist, or has no columns")
@@ -123,7 +125,7 @@ class Redshift(PostgreSQL):
         schema_dict = self._normalize_schema_info(rows)
         return schema_dict
 
-    def select_svv_columns_schema(self, path: DbPath) -> Dict[str, tuple]:
+    def select_svv_columns_schema(self, path: DbPath) -> dict[str, tuple]:
         database, schema, table = self._normalize_table_path(path)
 
         db_clause = ""
@@ -146,7 +148,7 @@ class Redshift(PostgreSQL):
             + db_clause
         )
 
-    def query_svv_columns(self, path: DbPath) -> Dict[str, RawColumnInfo]:
+    def query_svv_columns(self, path: DbPath) -> dict[str, RawColumnInfo]:
         rows = self.query(self.select_svv_columns_schema(path), list)
         if not rows:
             raise RuntimeError(f"{self.name}: Table '{'.'.join(path)}' does not exist, or has no columns")
@@ -162,13 +164,17 @@ class Redshift(PostgreSQL):
             )
             for r in rows
         }
-        assert len(d) == len(rows)
+        if len(d) != len(rows):
+            raise RuntimeError(
+                f"Column info dict has {len(d)} entries but expected {len(rows)}. "
+                "Possible duplicate column names in query result."
+            )
         return d
 
     # when using a non-information_schema source, strip (N) from type(N) etc. to match
     # typical information_schema output
-    def _normalize_schema_info(self, rows: Iterable[Tuple[Any]]) -> Dict[str, RawColumnInfo]:
-        schema_dict: Dict[str, RawColumnInfo] = {}
+    def _normalize_schema_info(self, rows: Iterable[tuple[Any]]) -> dict[str, RawColumnInfo]:
+        schema_dict: dict[str, RawColumnInfo] = {}
         for r in rows:
             col_name = r[0]
             type_info = r[1].split("(")
@@ -192,16 +198,19 @@ class Redshift(PostgreSQL):
             )
         return schema_dict
 
-    def query_table_schema(self, path: DbPath) -> Dict[str, RawColumnInfo]:
+    def query_table_schema(self, path: DbPath) -> dict[str, RawColumnInfo]:
         try:
             return super().query_table_schema(path)
-        except RuntimeError:
+        except RuntimeError as e:
+            logger.debug(f"Standard schema query failed for {path}, trying external table: {e}")
             try:
                 return self.query_external_table_schema(path)
-            except RuntimeError:
+            except RuntimeError as e:
+                logger.debug(f"External table schema query failed for {path}, trying pg_get_cols: {e}")
                 try:
                     return self.query_pg_get_cols(path)
-                except Exception:
+                except RuntimeError as e:
+                    logger.debug(f"pg_get_cols failed for {path}, trying svv_columns: {e}")
                     return self.query_svv_columns(path)
 
     def _normalize_table_path(self, path: DbPath) -> DbPath:

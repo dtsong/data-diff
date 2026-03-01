@@ -1,37 +1,35 @@
 """Provides classes for performing a table diff using JOIN"""
 
+import logging
 from decimal import Decimal
 from functools import partial
-import logging
-from typing import List, Optional
 from itertools import chain
 
 import attrs
 
-from data_diff.databases import Database, MsSQL, MySQL, BigQuery, Presto, Oracle, Snowflake, DuckDB
-from data_diff.abcs.database_types import NumericType, DbPath
+from data_diff.abcs.database_types import DbPath, NumericType
+from data_diff.databases import BigQuery, Database, DuckDB, MsSQL, MySQL, Oracle, Presto, Snowflake
 from data_diff.databases.base import Compiler
+from data_diff.diff_tables import DiffResult, TableDiffer
+from data_diff.info_tree import InfoTree
 from data_diff.queries.api import (
-    table,
-    sum_,
     and_,
     if_,
+    leftjoin,
     or_,
     outerjoin,
-    leftjoin,
     rightjoin,
+    sum_,
+    table,
     this,
     when,
 )
-from data_diff.queries.ast_classes import Concat, Count, Expr, Random, TablePath, Code, ITable
+from data_diff.queries.ast_classes import Code, Concat, Count, Expr, ITable, Random, TablePath
 from data_diff.queries.extras import NormalizeAsString
-from data_diff.info_tree import InfoTree
 from data_diff.query_utils import append_to_table, drop_table
-from data_diff.utils import safezip
 from data_diff.table_segment import TableSegment
-from data_diff.diff_tables import TableDiffer, DiffResult
 from data_diff.thread_utils import ThreadedYielder
-
+from data_diff.utils import safezip
 
 logger = logging.getLogger("joindiff_tables")
 
@@ -71,7 +69,7 @@ def bool_to_int(x):
     return if_(x, 1, 0)
 
 
-def _outerjoin(db: Database, a: ITable, b: ITable, keys1: List[str], keys2: List[str], select_fields: dict) -> ITable:
+def _outerjoin(db: Database, a: ITable, b: ITable, keys1: list[str], keys2: list[str], select_fields: dict) -> ITable:
     on = [a[k1] == b[k2] for k1, k2 in safezip(keys1, keys2)]
 
     is_exclusive_a = and_(b[k] == None for k in keys2)
@@ -100,7 +98,8 @@ def _slice_tuple(t, *sizes):
     for size in sizes:
         yield t[i : i + size]
         i += size
-    assert i == len(t)
+    if i != len(t):
+        raise ValueError(f"Tuple slice sizes do not sum to total length: consumed {i}, expected {len(t)}.")
 
 
 def json_friendly_value(v):
@@ -125,7 +124,7 @@ class JoinDiffer(TableDiffer):
                                    There may be many pools, so number of actual threads can be a lot higher.
         validate_unique_key (bool): Enable/disable validating that the key columns are unique. (default: True)
                                     If there are no UNIQUE constraints in the schema, it is done in a single query,
-                                    and can't be threaded, so it's very slow on non-cloud dbs.
+                                    and can't be threaded, so it's very slow on large tables.
         sample_exclusive_rows (bool): Enable/disable sampling of exclusive rows. (default: False)
                                       Creates a temporary table.
         materialize_to_table (DbPath, optional): Path of new table to write diff results to. Disabled if not provided.
@@ -136,7 +135,7 @@ class JoinDiffer(TableDiffer):
 
     validate_unique_key: bool = True
     sample_exclusive_rows: bool = False
-    materialize_to_table: Optional[DbPath] = None
+    materialize_to_table: DbPath | None = None
     materialize_all_rows: bool = False
     table_write_limit: int = TABLE_WRITE_LIMIT
     skip_null_keys: bool = False
@@ -156,7 +155,7 @@ class JoinDiffer(TableDiffer):
             drop_table(db, self.materialize_to_table)
 
         with self._run_in_background(*bg_funcs):
-            if isinstance(db, (Snowflake, BigQuery, DuckDB)):
+            if isinstance(db, Snowflake | BigQuery | DuckDB):
                 # Don't segment the table; let the database handling parallelization
                 yield from self._diff_segments(None, table1, table2, info_tree, None)
             else:
@@ -176,7 +175,8 @@ class JoinDiffer(TableDiffer):
         segment_index=None,
         segment_count=None,
     ):
-        assert table1.database is table2.database
+        if table1.database is not table2.database:
+            raise ValueError("Join-diff segments must share the same database instance.")
 
         if segment_index or table1.min_key or max_rows:
             logger.info(
@@ -203,7 +203,8 @@ class JoinDiffer(TableDiffer):
             if self.materialize_to_table
             else None,
         ):
-            assert len(a_cols) == len(b_cols)
+            if len(a_cols) != len(b_cols):
+                raise RuntimeError(f"Column count mismatch: a_cols={len(a_cols)}, b_cols={len(b_cols)}.")
             logger.debug(f"Querying for different rows: {table1.table_path}")
             diff = db.query(diff_rows, list, log_message=table1.table_path)
             info_tree.info.set_diff(diff, schema=tuple(diff_rows.schema.items()))
@@ -219,7 +220,8 @@ class JoinDiffer(TableDiffer):
                 # _is_diff, a_row, b_row = _slice_tuple(x, len(is_diff_cols), len(a_cols), len(b_cols))
                 _is_diff, ab_row = _slice_tuple(x, len(is_diff_cols), len(a_cols) + len(b_cols))
                 a_row, b_row = ab_row[::2], ab_row[1::2]
-                assert len(a_row) == len(b_row)
+                if len(a_row) != len(b_row):
+                    raise RuntimeError(f"Row length mismatch: a_row={len(a_row)}, b_row={len(b_row)}.")
                 if not is_xb:
                     yield "-", tuple(a_row)
                 if not is_xa:
@@ -339,8 +341,8 @@ class JoinDiffer(TableDiffer):
         diff_rows,
         cols,
         is_diff_cols,
-        table1: Optional[TableSegment] = None,
-        table2: Optional[TableSegment] = None,
+        table1: TableSegment | None = None,
+        table2: TableSegment | None = None,
     ):
         logger.debug(f"Counting differences per column: {table1.table_path} <> {table2.table_path}")
         is_diff_cols_counts = db.query(
@@ -359,10 +361,10 @@ class JoinDiffer(TableDiffer):
         diff_rows,
         a_cols,
         b_cols,
-        table1: Optional[TableSegment] = None,
-        table2: Optional[TableSegment] = None,
+        table1: TableSegment | None = None,
+        table2: TableSegment | None = None,
     ):
-        if isinstance(db, (Oracle, MsSQL)):
+        if isinstance(db, Oracle | MsSQL):
             exclusive_rows_query = diff_rows.where((this.is_exclusive_a == 1) | (this.is_exclusive_b == 1))
         else:
             exclusive_rows_query = diff_rows.where(this.is_exclusive_a | this.is_exclusive_b)
@@ -394,6 +396,7 @@ class JoinDiffer(TableDiffer):
         db.query(exclusive_rows(exclusive_rows_query), None)
 
     def _materialize_diff(self, db, diff_rows, segment_index=None):
-        assert self.materialize_to_table
+        if not self.materialize_to_table:
+            raise RuntimeError("_materialize_diff called but materialize_to_table is not set.")
 
         append_to_table(db, self.materialize_to_table, diff_rows.limit(self.table_write_limit))

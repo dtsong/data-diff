@@ -1,52 +1,53 @@
 from enum import Enum
-from typing import List, Dict, Optional, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class ManifestJsonConfig(BaseModel):
     class Metadata(BaseModel):
-        dbt_version: str = Field(..., regex=r"^\d+\.\d+\.\d+([a-zA-Z0-9]+)?$")
-        project_id: Optional[str]
-        user_id: Optional[str]
+        dbt_version: str = Field(..., pattern=r"^\d+\.\d+\.\d+([a-zA-Z0-9]+)?$")
+        project_id: str | None
+        user_id: str | None
 
     class Nodes(BaseModel):
         class Config(BaseModel):
-            database: Optional[str]
-            schema_: Optional[str] = Field(..., alias="schema")
-            tags: List[str]
+            database: str | None
+            schema_: str | None = Field(..., alias="schema")
+            tags: list[str]
 
         class Column(BaseModel):
-            meta: Dict[str, Any]
-            tags: List[str]
+            meta: dict[str, Any]
+            tags: list[str]
 
         class TestMetadata(BaseModel):
             name: str
-            kwargs: Dict[str, Any]
+            kwargs: dict[str, Any]
 
         class DependsOn(BaseModel):
-            macros: List[str] = []
-            nodes: List[str] = []
+            macros: list[str] = []
+            nodes: list[str] = []
 
         unique_id: str
         resource_type: str
         name: str
         alias: str
-        database: Optional[str]
+        database: str | None
         schema_: str = Field(..., alias="schema")
-        columns: Optional[Dict[str, Column]]
-        meta: Dict[str, Any]
+        columns: dict[str, Column] | None
+        meta: dict[str, Any]
         config: Config
-        tags: List[str]
-        test_metadata: Optional[TestMetadata]
+        tags: list[str]
+        test_metadata: TestMetadata | None
         depends_on: DependsOn
 
     metadata: Metadata
-    nodes: Dict[str, Nodes]
+    nodes: dict[str, Nodes]
 
 
 class RunResultsJsonConfig(BaseModel):
     class Metadata(BaseModel):
-        dbt_version: str = Field(..., regex=r"^\d+\.\d+\.\d+([a-zA-Z0-9]+)?$")
+        dbt_version: str = Field(..., pattern=r"^\d+\.\d+\.\d+([a-zA-Z0-9]+)?$")
 
     class Results(BaseModel):
         class Status(Enum):
@@ -62,4 +63,4 @@ class RunResultsJsonConfig(BaseModel):
         unique_id: str = Field("...")
 
     metadata: Metadata
-    results: List[Results]
+    results: list[Results]

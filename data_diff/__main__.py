@@ -6,7 +6,6 @@ import time
 from copy import deepcopy
 from datetime import datetime
 from itertools import islice
-from typing import Dict, Optional, Tuple, Union, List, Set
 
 import click
 import rich
@@ -15,16 +14,14 @@ from rich.logging import RichHandler
 from data_diff import Database, DbPath
 from data_diff.config import apply_config_from_file
 from data_diff.databases._connect import connect
-from data_diff.dbt import dbt_diff
 from data_diff.diff_tables import Algorithm, TableDiffer
-from data_diff.hashdiff_tables import HashDiffer, DEFAULT_BISECTION_THRESHOLD, DEFAULT_BISECTION_FACTOR
+from data_diff.hashdiff_tables import DEFAULT_BISECTION_FACTOR, DEFAULT_BISECTION_THRESHOLD, HashDiffer
 from data_diff.joindiff_tables import TABLE_WRITE_LIMIT, JoinDiffer
-from data_diff.parse_time import parse_time_before, UNITS_STR, ParseError
+from data_diff.parse_time import UNITS_STR, ParseError, parse_time_before
 from data_diff.queries.api import current_timestamp
 from data_diff.schema import RawColumnInfo, create_schema
 from data_diff.table_segment import TableSegment
-from data_diff.tracking import disable_tracking, set_entrypoint_name
-from data_diff.utils import eval_name_template, remove_password_from_url, safezip, match_like, LogStatusHandler
+from data_diff.utils import LogStatusHandler, eval_name_template, match_like, remove_password_from_url, safezip
 from data_diff.version import __version__
 
 COLOR_SCHEME = {
@@ -32,10 +29,8 @@ COLOR_SCHEME = {
     "-": "red",
 }
 
-set_entrypoint_name(os.getenv("DATAFOLD_TRIGGERED_BY", "CLI"))
 
-
-def _get_log_handlers(is_dbt: Optional[bool] = False) -> Dict[str, logging.Handler]:
+def _get_log_handlers(is_dbt: bool = False) -> dict[str, logging.Handler]:
     handlers = {}
     date_format = "%H:%M:%S"
     log_format_rich = "%(message)s"
@@ -59,18 +54,18 @@ def _get_log_handlers(is_dbt: Optional[bool] = False) -> Dict[str, logging.Handl
 
 def _remove_passwords_in_dict(d: dict) -> None:
     for k, v in d.items():
-        if k == "password":
+        if k == "password" and isinstance(v, str):
             d[k] = "*" * len(v)
-        elif k == "filepath":
+        elif k == "filepath" and isinstance(v, str):
             if "motherduck_token=" in v:
                 d[k] = v.split("motherduck_token=")[0] + "motherduck_token=**********"
         elif isinstance(v, dict):
             _remove_passwords_in_dict(v)
-        elif k.startswith("database"):
+        elif k.startswith("database") and isinstance(v, str):
             d[k] = remove_password_from_url(v)
 
 
-def _get_schema(pair: Tuple[Database, DbPath]) -> Dict[str, RawColumnInfo]:
+def _get_schema(pair: tuple[Database, DbPath]) -> dict[str, RawColumnInfo]:
     db, table_path = pair
     return db.query_table_schema(table_path)
 
@@ -87,7 +82,7 @@ def diff_schemas(table1, table2, schema1, schema2, columns) -> None:
             cols = ", ".join(schema1)
             raise ValueError(f"Column '{c}' not found in table 1, named '{table1}'. Columns: {cols}")
         if c not in schema2:
-            cols = ", ".join(schema1)
+            cols = ", ".join(schema2)
             raise ValueError(f"Column '{c}' not found in table 2, named '{table2}'. Columns: {cols}")
 
         col1 = schema1[c]
@@ -105,7 +100,7 @@ class MyHelpFormatter(click.HelpFormatter):
         super().__init__(self, **kwargs)
         self.indent_increment = 6
 
-    def write_usage(self, prog: str, args: str = "", prefix: Optional[str] = None) -> None:
+    def write_usage(self, prog: str, args: str = "", prefix: str | None = None) -> None:
         self.write(f"data-diff v{__version__} - efficiently diff rows across database tables.\n\n")
         self.write("Usage:\n")
         self.write(f"  * In-db diff:    {prog} <database_a> <table_a> <table_b> [OPTIONS]\n")
@@ -172,7 +167,6 @@ click.Context.formatter_class = MyHelpFormatter
 @click.option("-v", "--verbose", is_flag=True, help="Print extra info")
 @click.option("--version", is_flag=True, help="Print version info and exit")
 @click.option("-i", "--interactive", is_flag=True, help="Confirm queries, implies --debug")
-@click.option("--no-tracking", is_flag=True, help="data-diff sends home anonymous usage data. Use this to disable it.")
 @click.option(
     "--case-sensitive",
     is_flag=True,
@@ -181,7 +175,7 @@ click.Context.formatter_class = MyHelpFormatter
 @click.option(
     "--assume-unique-key",
     is_flag=True,
-    help="Skip validating the uniqueness of the key column during joindiff, which is costly in non-cloud dbs.",
+    help="Skip validating the uniqueness of the key column during joindiff, which is costly on large tables.",
 )
 @click.option(
     "--sample-exclusive-rows",
@@ -232,11 +226,6 @@ click.Context.formatter_class = MyHelpFormatter
     "--dbt",
     is_flag=True,
     help="Run a diff using your local dbt project. Expects to be run from a dbt project folder by default.",
-)
-@click.option(
-    "--cloud",
-    is_flag=True,
-    help="Add this flag along with --dbt to run a diff using your local dbt project on Datafold cloud. Expects an api key on env var DATAFOLD_API_KEY.",
 )
 @click.option(
     "--dbt-profiles-dir",
@@ -293,9 +282,6 @@ def main(conf, run, **kw) -> None:
     if conf:
         kw = apply_config_from_file(conf, run, kw)
 
-    if kw["no_tracking"]:
-        disable_tracking()
-
     if kw.get("interactive"):
         kw["debug"] = True
 
@@ -324,11 +310,12 @@ def main(conf, run, **kw) -> None:
         if project_dir_override:
             project_dir_override = os.path.expanduser(project_dir_override)
         if kw["dbt"]:
+            from data_diff.dbt import dbt_diff
+
             dbt_diff(
                 log_status_handler=log_handlers.get("log_status_handler"),
                 profiles_dir_override=profiles_dir_override,
                 project_dir_override=project_dir_override,
-                is_cloud=kw["cloud"],
                 dbt_selection=kw["select"],
                 json_output=kw["json_output"],
                 state=state,
@@ -347,7 +334,7 @@ def main(conf, run, **kw) -> None:
 
 def _get_dbs(
     threads: int, database1: str, threads1: int, database2: str, threads2: int, interactive: bool
-) -> Tuple[Database, Database]:
+) -> tuple[Database, Database]:
     db1 = connect(database1, threads1 or threads)
     if database1 == database2:
         db2 = db1
@@ -361,7 +348,7 @@ def _get_dbs(
     return db1, db2
 
 
-def _set_age(options: dict, min_age: Optional[str], max_age: Optional[str], db: Database) -> None:
+def _set_age(options: dict, min_age: str | None, max_age: str | None, db: Database) -> None:
     if min_age or max_age:
         now: datetime = db.query(current_timestamp(), datetime).replace(tzinfo=None)
         try:
@@ -370,7 +357,7 @@ def _set_age(options: dict, min_age: Optional[str], max_age: Optional[str], db: 
             if min_age:
                 options["max_update"] = parse_time_before(now, min_age)
         except ParseError as e:
-            logging.error(f"Error while parsing age expression: {e}")
+            raise click.BadParameter(f"Error while parsing age expression: {e}") from e
 
 
 def _get_table_differ(
@@ -383,9 +370,9 @@ def _get_table_differ(
     sample_exclusive_rows: bool,
     materialize_all_rows: bool,
     table_write_limit: int,
-    materialize_to_table: Optional[str],
-    bisection_factor: Optional[int],
-    bisection_threshold: Optional[int],
+    materialize_to_table: str | None,
+    bisection_factor: int | None,
+    bisection_threshold: int | None,
 ) -> TableDiffer:
     algorithm = Algorithm(algorithm)
     if algorithm == Algorithm.AUTO:
@@ -406,7 +393,8 @@ def _get_table_differ(
             ),
         )
 
-    assert algorithm == Algorithm.HASHDIFF
+    if algorithm != Algorithm.HASHDIFF:
+        raise ValueError(f"Unsupported algorithm: {algorithm!r}. Expected Algorithm.HASHDIFF.")
     return HashDiffer(
         bisection_factor=DEFAULT_BISECTION_FACTOR if bisection_factor is None else bisection_factor,
         bisection_threshold=DEFAULT_BISECTION_THRESHOLD if bisection_threshold is None else bisection_threshold,
@@ -437,17 +425,17 @@ def _print_result(stats, json_output, diff_iter) -> None:
 
 
 def _get_expanded_columns(
-    columns: List[str],
+    columns: list[str],
     case_sensitive: bool,
-    mutual: Set[str],
+    mutual: set[str],
     db1: Database,
     schema1: dict,
     table1: str,
     db2: Database,
     schema2: dict,
     table2: str,
-) -> Set[str]:
-    expanded_columns: Set[str] = set()
+) -> set[str]:
+    expanded_columns: set[str] = set()
     for c in columns:
         cc = c if case_sensitive else c.lower()
         match = set(match_like(cc, mutual))
@@ -461,12 +449,13 @@ def _get_expanded_columns(
     return expanded_columns
 
 
-def _get_threads(threads: Union[int, str, None], threads1: Optional[int], threads2: Optional[int]) -> Tuple[bool, int]:
+def _get_threads(threads: int | str | None, threads1: int | None, threads2: int | None) -> tuple[bool, int]:
     threaded = True
     if threads is None:
         threads = 1
     elif isinstance(threads, str) and threads.lower() == "serial":
-        assert not (threads1 or threads2)
+        if threads1 or threads2:
+            raise ValueError("Cannot specify per-table thread counts when using 'serial' mode.")
         threaded = False
         threads = 1
     else:
@@ -502,7 +491,6 @@ def _data_diff(
     verbose,
     version,
     interactive,
-    no_tracking,
     threads,
     case_sensitive,
     json_output,
@@ -513,7 +501,6 @@ def _data_diff(
     table_write_limit,
     materialize_to_table,
     dbt,
-    cloud,
     dbt_profiles_dir,
     dbt_project_dir,
     prod_database,
@@ -525,18 +512,16 @@ def _data_diff(
     __conf__=None,
 ) -> None:
     if limit and stats:
-        logging.error("Cannot specify a limit when using the -s/--stats switch")
-        return
+        raise click.UsageError("Cannot specify --limit together with --stats.")
 
     key_columns = key_columns or ("id",)
     threaded, threads = _get_threads(threads, threads1, threads2)
     start = time.monotonic()
 
     if database1 is None or database2 is None:
-        logging.error(
-            f"Error: Databases not specified. Got {database1} and {database2}. Use --help for more information."
+        raise click.UsageError(
+            f"Databases not specified. Got database1={database1} and database2={database2}. Use --help for more information."
         )
-        return
 
     db1: Database
     db2: Database
@@ -548,7 +533,7 @@ def _data_diff(
         }
 
         _set_age(options, min_age, max_age, db1)
-        dbs: Tuple[Database, Database] = db1, db2
+        dbs: tuple[Database, Database] = db1, db2
 
         differ = _get_table_differ(
             algorithm,
@@ -605,13 +590,12 @@ def _data_diff(
         diff_iter = differ.diff_tables(*segments)
 
         if limit:
-            assert not stats
             diff_iter = islice(diff_iter, int(limit))
 
         _print_result(stats, json_output, diff_iter)
 
     end = time.monotonic()
-    logging.info(f"Duration: {end-start:.2f} seconds.")
+    logging.info(f"Duration: {end - start:.2f} seconds.")
 
 
 if __name__ == "__main__":

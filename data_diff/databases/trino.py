@@ -1,11 +1,10 @@
-from typing import Any, ClassVar, Type
+from typing import Any, ClassVar
 
 import attrs
 
-from data_diff.abcs.database_types import TemporalType, ColType_UUID
+from data_diff.abcs.database_types import ColType_UUID, TemporalType
 from data_diff.databases import presto
-from data_diff.databases.base import import_helper
-from data_diff.databases.base import TIMESTAMP_PRECISION_POS, BaseDialect
+from data_diff.databases.base import TIMESTAMP_PRECISION_POS, BaseDialect, import_helper
 
 
 @import_helper("trino")
@@ -34,7 +33,7 @@ class Dialect(presto.Dialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class Trino(presto.Presto):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "trino://<user>@<host>/<catalog>/<schema>"
     CONNECT_URI_PARAMS = ["catalog", "schema"]
 

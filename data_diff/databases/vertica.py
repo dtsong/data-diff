@@ -1,22 +1,10 @@
-from typing import Any, ClassVar, Dict, List, Type
+from typing import Any, ClassVar
 
 import attrs
 
-from data_diff.schema import RawColumnInfo
-from data_diff.utils import match_regexps
-from data_diff.databases.base import (
-    CHECKSUM_HEXDIGITS,
-    CHECKSUM_OFFSET,
-    MD5_HEXDIGITS,
-    TIMESTAMP_PRECISION_POS,
-    BaseDialect,
-    ConnectError,
-    DbPath,
-    ColType,
-    ThreadedDatabase,
-    import_helper,
-)
 from data_diff.abcs.database_types import (
+    Boolean,
+    ColType_UUID,
     Decimal,
     Float,
     FractionalType,
@@ -25,9 +13,21 @@ from data_diff.abcs.database_types import (
     Text,
     Timestamp,
     TimestampTZ,
-    Boolean,
-    ColType_UUID,
 )
+from data_diff.databases.base import (
+    CHECKSUM_HEXDIGITS,
+    CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
+    TIMESTAMP_PRECISION_POS,
+    BaseDialect,
+    ColType,
+    ConnectError,
+    DbPath,
+    ThreadedDatabase,
+    import_helper,
+)
+from data_diff.schema import RawColumnInfo
+from data_diff.utils import match_regexps
 
 
 @import_helper("vertica")
@@ -63,7 +63,7 @@ class Dialect(BaseDialect):
     def quote(self, s: str) -> str:
         return f'"{s}"'
 
-    def concat(self, items: List[str]) -> str:
+    def concat(self, items: list[str]) -> str:
         return " || ".join(items)
 
     def to_string(self, s: str) -> str:
@@ -92,7 +92,7 @@ class Dialect(BaseDialect):
             r"varchar\((\d+)\)": Text,
             r"char\((\d+)\)": Text,
         }
-        for m, n_cls in match_regexps(string_regexps, info.data_type):
+        for _m, n_cls in match_regexps(string_regexps, info.data_type):
             return n_cls()
 
         return super().parse_type(table_path, info)
@@ -114,9 +114,7 @@ class Dialect(BaseDialect):
             return f"TO_CHAR({value}::TIMESTAMP({coltype.precision}), 'YYYY-MM-DD HH24:MI:SS.US')"
 
         timestamp6 = f"TO_CHAR({value}::TIMESTAMP(6), 'YYYY-MM-DD HH24:MI:SS.US')"
-        return (
-            f"RPAD(LEFT({timestamp6}, {TIMESTAMP_PRECISION_POS+coltype.precision}), {TIMESTAMP_PRECISION_POS+6}, '0')"
-        )
+        return f"RPAD(LEFT({timestamp6}, {TIMESTAMP_PRECISION_POS + coltype.precision}), {TIMESTAMP_PRECISION_POS + 6}, '0')"
 
     def normalize_number(self, value: str, coltype: FractionalType) -> str:
         return self.to_string(f"CAST({value} AS NUMERIC(38, {coltype.precision}))")
@@ -131,11 +129,11 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class Vertica(ThreadedDatabase):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "vertica://<user>:<password>@<host>/<database>"
     CONNECT_URI_PARAMS = ["database?"]
 
-    _args: Dict[str, Any]
+    _args: dict[str, Any]
 
     def __init__(self, *, thread_count, **kw) -> None:
         super().__init__(thread_count=thread_count)

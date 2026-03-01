@@ -1,3 +1,14 @@
+.git/
+.github/
+.worktrees/
 .venv
+.ruff_cache/
+tests/
+docs/
+dev/
+*.md
+!README.md
+__pycache__/
+*.pyc
 ml-25m*
 dev/ml-25m*

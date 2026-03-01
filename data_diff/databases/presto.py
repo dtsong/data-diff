@@ -1,39 +1,36 @@
-from functools import partial
 import re
-from typing import Any, ClassVar, Type
+from functools import partial
+from typing import Any, ClassVar
 
 import attrs
 
-from data_diff.schema import RawColumnInfo
-from data_diff.utils import match_regexps
-
 from data_diff.abcs.database_types import (
-    Timestamp,
-    TimestampTZ,
-    Integer,
-    Float,
-    Text,
-    FractionalType,
+    Boolean,
+    ColType,
+    ColType_UUID,
     DbPath,
     DbTime,
     Decimal,
-    ColType,
-    ColType_UUID,
+    Float,
+    FractionalType,
+    Integer,
     TemporalType,
-    Boolean,
+    Text,
+    Timestamp,
+    TimestampTZ,
 )
 from data_diff.databases.base import (
-    BaseDialect,
-    Database,
-    import_helper,
-    ThreadLocalInterpreter,
-)
-from data_diff.databases.base import (
-    MD5_HEXDIGITS,
     CHECKSUM_HEXDIGITS,
     CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
     TIMESTAMP_PRECISION_POS,
+    BaseDialect,
+    Database,
+    ThreadLocalInterpreter,
+    import_helper,
 )
+from data_diff.schema import RawColumnInfo
+from data_diff.utils import match_regexps
 
 
 def query_cursor(c, sql_code):
@@ -76,7 +73,7 @@ class Dialect(BaseDialect):
 
     def type_repr(self, t) -> str:
         if isinstance(t, TimestampTZ):
-            return f"timestamp with time zone"
+            return "timestamp with time zone"
 
         try:
             return {float: "REAL"}[t]
@@ -107,7 +104,7 @@ class Dialect(BaseDialect):
             return n_cls(scale)
 
         string_regexps = {r"varchar\((\d+)\)": Text, r"char\((\d+)\)": Text}
-        for m, n_cls in match_regexps(string_regexps, info.data_type):
+        for _m, n_cls in match_regexps(string_regexps, info.data_type):
             return n_cls()
 
         return super().parse_type(table_path, info)
@@ -119,7 +116,7 @@ class Dialect(BaseDialect):
         return "current_timestamp"
 
     def md5_as_int(self, s: str) -> str:
-        return f"cast(from_base(substr(to_hex(md5(to_utf8({s}))), {1+MD5_HEXDIGITS-CHECKSUM_HEXDIGITS}), 16) as decimal(38, 0)) - {CHECKSUM_OFFSET}"
+        return f"cast(from_base(substr(to_hex(md5(to_utf8({s}))), {1 + MD5_HEXDIGITS - CHECKSUM_HEXDIGITS}), 16) as decimal(38, 0)) - {CHECKSUM_OFFSET}"
 
     def md5_as_hex(self, s: str) -> str:
         return f"to_hex(md5(to_utf8({s})))"
@@ -135,7 +132,9 @@ class Dialect(BaseDialect):
         else:
             s = f"date_format(cast({value} as timestamp(6)), '%Y-%m-%d %H:%i:%S.%f')"
 
-        return f"RPAD(RPAD({s}, {TIMESTAMP_PRECISION_POS+coltype.precision}, '.'), {TIMESTAMP_PRECISION_POS+6}, '0')"
+        return (
+            f"RPAD(RPAD({s}, {TIMESTAMP_PRECISION_POS + coltype.precision}, '.'), {TIMESTAMP_PRECISION_POS + 6}, '0')"
+        )
 
     def normalize_number(self, value: str, coltype: FractionalType) -> str:
         return self.to_string(f"cast({value} as decimal(38,{coltype.precision}))")
@@ -146,7 +145,7 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class Presto(Database):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     CONNECT_URI_HELP = "presto://<user>@<host>/<catalog>/<schema>"
     CONNECT_URI_PARAMS = ["catalog", "schema"]
 

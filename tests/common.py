@@ -1,29 +1,27 @@
 import hashlib
+import logging
 import os
+import random
 import re
 import string
-import random
-from typing import Callable
-import unittest
-import logging
 import subprocess
+import unittest
+from collections.abc import Callable
 
 from parameterized import parameterized_class
 
-from data_diff.queries.api import table
-from data_diff.databases.base import Database
-
-from data_diff import databases as db
-from data_diff import tracking
 from data_diff import connect
-from data_diff.table_segment import TableSegment
+from data_diff import databases as db
+from data_diff.databases.base import Database
+from data_diff.queries.api import table
 from data_diff.query_utils import drop_table
-
-tracking.disable_tracking()
+from data_diff.table_segment import TableSegment
 
 # We write 'or None' because Github sometimes creates empty env vars for secrets
-TEST_MYSQL_CONN_STRING: str = "mysql://mysql:Password1@localhost/mysql"
-TEST_POSTGRESQL_CONN_STRING: str = "postgresql://postgres:Password1@localhost/postgres"
+TEST_MYSQL_CONN_STRING: str = os.environ.get("DATADIFF_MYSQL_URI") or "mysql://mysql:Password1@localhost/mysql"
+TEST_POSTGRESQL_CONN_STRING: str = (
+    os.environ.get("DATADIFF_POSTGRESQL_URI") or "postgresql://postgres:Password1@localhost/postgres"
+)
 TEST_SNOWFLAKE_CONN_STRING: str = os.environ.get("DATADIFF_SNOWFLAKE_URI") or None
 TEST_PRESTO_CONN_STRING: str = os.environ.get("DATADIFF_PRESTO_URI") or None
 TEST_BIGQUERY_CONN_STRING: str = os.environ.get("DATADIFF_BIGQUERY_URI") or None

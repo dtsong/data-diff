@@ -1,7 +1,6 @@
-from data_diff.utils import CaseAwareMapping, CaseSensitiveDict
 from data_diff.queries.ast_classes import *
 from data_diff.queries.base import args_as_tuple
-
+from data_diff.utils import CaseAwareMapping, CaseSensitiveDict
 
 this = This()
 
@@ -50,12 +49,12 @@ def outerjoin(*tables: ITable) -> Join:
     return Join(tables, "FULL OUTER")
 
 
-def cte(expr: Expr, *, name: Optional[str] = None, params: Sequence[str] = None) -> Cte:
+def cte(expr: Expr, *, name: str | None = None, params: Sequence[str] = None) -> Cte:
     """Define a CTE"""
     return Cte(expr, name, params)
 
 
-def table(*path: str, schema: Union[dict, CaseAwareMapping] = None) -> TablePath:
+def table(*path: str, schema: dict | CaseAwareMapping = None) -> TablePath:
     """Defines a table with a path (dotted name), and optionally a schema.
 
     Parameters:
@@ -67,12 +66,13 @@ def table(*path: str, schema: Union[dict, CaseAwareMapping] = None) -> TablePath
     if not all(isinstance(i, str) for i in path):
         raise TypeError(f"All elements of table path must be of type 'str'. Got: {path}")
     if schema and not isinstance(schema, CaseAwareMapping):
-        assert isinstance(schema, dict)
+        if not isinstance(schema, dict):
+            raise TypeError(f"schema must be a dict or CaseAwareMapping, got {type(schema).__name__!r}.")
         schema = CaseSensitiveDict(schema)
     return TablePath(path, schema)
 
 
-def or_(*exprs: Expr) -> Union[BinBoolOp, Expr]:
+def or_(*exprs: Expr) -> BinBoolOp | Expr:
     """Apply OR between a sequence of boolean expressions"""
     exprs = args_as_tuple(exprs)
     if len(exprs) == 1:
@@ -80,7 +80,7 @@ def or_(*exprs: Expr) -> Union[BinBoolOp, Expr]:
     return BinBoolOp("OR", exprs)
 
 
-def and_(*exprs: Expr) -> Union[BinBoolOp, Expr]:
+def and_(*exprs: Expr) -> BinBoolOp | Expr:
     """Apply AND between a sequence of boolean expressions"""
     exprs = args_as_tuple(exprs)
     if len(exprs) == 1:
@@ -113,7 +113,7 @@ def exists(expr: Expr) -> Func:
     return Func("exists", [expr])
 
 
-def if_(cond: Expr, then: Expr, else_: Optional[Expr] = None) -> CaseWhen:
+def if_(cond: Expr, then: Expr, else_: Expr | None = None) -> CaseWhen:
     """Conditional expression, shortcut to when-then-else.
 
     Example:
@@ -152,7 +152,8 @@ def coalesce(*exprs) -> Func:
 
 
 def insert_rows_in_batches(db, tbl: TablePath, rows, *, columns=None, batch_size=1024 * 8) -> None:
-    assert batch_size > 0
+    if batch_size <= 0:
+        raise ValueError(f"batch_size must be a positive integer, got {batch_size!r}.")
     rows = list(rows)
 
     while rows:
@@ -165,7 +166,7 @@ def current_timestamp() -> CurrentTimestamp:
     return CurrentTimestamp()
 
 
-def code(code: str, **kw: Dict[str, Expr]) -> Code:
+def code(code: str, **kw: dict[str, Expr]) -> Code:
     """Inline raw SQL code.
 
     It allows users to use features and syntax that Sqeleton doesn't yet support.

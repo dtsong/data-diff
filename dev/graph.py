@@ -5,10 +5,12 @@
 #   - pip install plotly
 #
 
+import glob
+
 import pandas as pd
 import plotly.graph_objects as go
+
 from data_diff.utils import number_to_human
-import glob
 
 for benchmark_file in glob.glob("benchmark_*.jsonl"):
     rows = pd.read_json(benchmark_file, lines=True)

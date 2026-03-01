@@ -1,34 +1,35 @@
-from typing import Any, ClassVar, Dict, Union, Type
+from typing import Any, ClassVar
 
 import attrs
 from packaging.version import parse as parse_version
 
-from data_diff.schema import RawColumnInfo
-from data_diff.utils import match_regexps
 from data_diff.abcs.database_types import (
+    Boolean,
+    ColType,
+    DbPath,
+    Decimal,
+    Float,
+    FractionalType,
+    Integer,
+    Native_UUID,
+    TemporalType,
+    Text,
     Timestamp,
     TimestampTZ,
-    DbPath,
-    ColType,
-    Float,
-    Decimal,
-    Integer,
-    TemporalType,
-    Native_UUID,
-    Text,
-    FractionalType,
-    Boolean,
 )
 from data_diff.databases.base import (
-    Database,
-    BaseDialect,
-    import_helper,
-    ConnectError,
-    ThreadLocalInterpreter,
-    TIMESTAMP_PRECISION_POS,
+    CHECKSUM_HEXDIGITS,
     CHECKSUM_OFFSET,
+    MD5_HEXDIGITS,
+    TIMESTAMP_PRECISION_POS,
+    BaseDialect,
+    ConnectError,
+    Database,
+    ThreadLocalInterpreter,
+    import_helper,
 )
-from data_diff.databases.base import MD5_HEXDIGITS, CHECKSUM_HEXDIGITS
+from data_diff.schema import RawColumnInfo
+from data_diff.utils import match_regexps
 from data_diff.version import __version__
 
 
@@ -97,7 +98,7 @@ class Dialect(BaseDialect):
         return "current_timestamp"
 
     def md5_as_int(self, s: str) -> str:
-        return f"('0x' || SUBSTRING(md5({s}), {1+MD5_HEXDIGITS-CHECKSUM_HEXDIGITS},{CHECKSUM_HEXDIGITS}))::BIGINT - {CHECKSUM_OFFSET}"
+        return f"('0x' || SUBSTRING(md5({s}), {1 + MD5_HEXDIGITS - CHECKSUM_HEXDIGITS},{CHECKSUM_HEXDIGITS}))::BIGINT - {CHECKSUM_OFFSET}"
 
     def md5_as_hex(self, s: str) -> str:
         return f"md5({s})"
@@ -105,9 +106,9 @@ class Dialect(BaseDialect):
     def normalize_timestamp(self, value: str, coltype: TemporalType) -> str:
         # It's precision 6 by default. If precision is less than 6 -> we remove the trailing numbers.
         if coltype.rounds and coltype.precision > 0:
-            return f"CONCAT(SUBSTRING(STRFTIME({value}::TIMESTAMP, '%Y-%m-%d %H:%M:%S.'),1,23), LPAD(((ROUND(strftime({value}::timestamp, '%f')::DECIMAL(15,7)/100000,{coltype.precision-1})*100000)::INT)::VARCHAR,6,'0'))"
+            return f"CONCAT(SUBSTRING(STRFTIME({value}::TIMESTAMP, '%Y-%m-%d %H:%M:%S.'),1,23), LPAD(((ROUND(strftime({value}::timestamp, '%f')::DECIMAL(15,7)/100000,{coltype.precision - 1})*100000)::INT)::VARCHAR,6,'0'))"
 
-        return f"rpad(substring(strftime({value}::timestamp, '%Y-%m-%d %H:%M:%S.%f'),1,{TIMESTAMP_PRECISION_POS+coltype.precision}),26,'0')"
+        return f"rpad(substring(strftime({value}::timestamp, '%Y-%m-%d %H:%M:%S.%f'),1,{TIMESTAMP_PRECISION_POS + coltype.precision}),26,'0')"
 
     def normalize_number(self, value: str, coltype: FractionalType) -> str:
         return self.to_string(f"{value}::DECIMAL(38, {coltype.precision})")
@@ -118,12 +119,12 @@ class Dialect(BaseDialect):
 
 @attrs.define(frozen=False, init=False, kw_only=True)
 class DuckDB(Database):
-    DIALECT_CLASS: ClassVar[Type[BaseDialect]] = Dialect
+    DIALECT_CLASS: ClassVar[type[BaseDialect]] = Dialect
     SUPPORTS_UNIQUE_CONSTAINT = False  # Temporary, until we implement it
     CONNECT_URI_HELP = "duckdb://<dbname>@<filepath>"
     CONNECT_URI_PARAMS = ["database", "dbpath"]
 
-    _args: Dict[str, Any] = attrs.field(init=False)
+    _args: dict[str, Any] = attrs.field(init=False)
     _conn: Any = attrs.field(init=False)
 
     def __init__(self, **kw) -> None:
@@ -136,7 +137,7 @@ class DuckDB(Database):
     def is_autocommit(self) -> bool:
         return True
 
-    def _query(self, sql_code: Union[str, ThreadLocalInterpreter]):
+    def _query(self, sql_code: str | ThreadLocalInterpreter):
         "Uses the standard SQL cursor interface"
         return self._query_conn(self._conn, sql_code)
 
@@ -154,14 +155,13 @@ class DuckDB(Database):
                 connection = ddb.connect(database=self._args["filepath"], config=config)
                 custom_user_agent_results = connection.sql("PRAGMA USER_AGENT;").fetchall()
                 custom_user_agent_filtered = custom_user_agent_results[0][0]
-                assert custom_user_agent in custom_user_agent_filtered
+                if custom_user_agent not in custom_user_agent_filtered:
+                    raise ConnectError("Custom user agent is invalid or not registered in DuckDB.")
             else:
                 connection = ddb.connect(database=self._args["filepath"])
             return connection
         except ddb.OperationalError as e:
             raise ConnectError(*e.args) from e
-        except AssertionError:
-            raise ConnectError("Assertion failed: Custom user agent is invalid.") from None
 
     def select_table_schema(self, path: DbPath) -> str:
         database, schema, table = self._normalize_table_path(path)

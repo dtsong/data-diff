@@ -1,2 +1,42 @@
-# Allow lines to be as long as 120.
 line-length = 120
+target-version = "py310"
+
+[lint]
+select = ["F", "E", "W", "I", "UP", "B", "SIM", "RUF", "C4", "PIE", "T20"]
+ignore = [
+    "E501",     # line too long (handled by formatter)
+    "E101",     # mixed tabs/spaces in multiline strings — false positives
+    "E711",     # comparison to None — intentional in SQL generation (== None → IS NULL)
+    "E712",     # comparison to True/False — intentional in SQL generation
+    "E722",     # bare except — existing codebase uses intentionally in DB drivers
+    "E741",     # ambiguous variable name — false positives on math code
+    "B024",     # abstract class without abstract methods — attrs classes
+    "B905",     # zip without strict= — too invasive for initial config
+    "C408",     # unnecessary dict() call — low priority style
+    "C414",     # unnecessary list() in sorted() — low priority
+    "C416",     # unnecessary dict comprehension — low priority
+    "PIE794",   # duplicate class field — attrs pattern
+    "RUF003",   # ambiguous unicode — false positive on comments
+    "RUF005",   # collection literal concatenation — too noisy for existing codebase
+    "RUF007",   # prefer itertools.pairwise — requires Python 3.10+ and different semantics
+    "RUF008",   # mutable default in dataclass — false positives on attrs fields
+    "RUF012",   # mutable class attrs — false positives on attrs/dataclass fields
+    "RUF013",   # implicit Optional — conflicts with existing codebase style
+    "RUF017",   # quadratic list summation — low priority
+    "SIM102",   # collapsible if — often less readable when collapsed
+    "SIM105",   # use contextlib.suppress — style preference
+    "SIM108",   # ternary — often less readable
+    "UP031",    # percent format — too noisy, low value
+]
+
+[lint.isort]
+known-first-party = ["data_diff"]
+
+[lint.per-file-ignores]
+"tests/*" = ["T20", "F405", "F403", "B904", "B007", "B017", "F821", "F841", "SIM117"]
+"dev/*" = ["T20"]
+"data_diff/__main__.py" = ["T20"]
+"data_diff/dbt.py" = ["T20"]
+"data_diff/utils.py" = ["T20"]
+"data_diff/databases/*" = ["B904"]
+"data_diff/queries/api.py" = ["F405", "F403"]

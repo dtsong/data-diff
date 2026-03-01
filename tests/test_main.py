@@ -1,11 +1,11 @@
 import unittest
 
-from data_diff import Database, JoinDiffer, HashDiffer
+from data_diff import Database, HashDiffer, JoinDiffer
 from data_diff import databases as db
-from data_diff.__main__ import _get_dbs, _set_age, _get_table_differ, _get_expanded_columns, _get_threads
+from data_diff.__main__ import _get_dbs, _get_expanded_columns, _get_table_differ, _get_threads, _set_age
 from data_diff.databases.mysql import MySQL
 from data_diff.diff_tables import TableDiffer
-from tests.common import CONN_STRINGS, get_conn, DiffTestCase
+from tests.common import CONN_STRINGS, DiffTestCase, get_conn
 
 
 class TestGetDBS(unittest.TestCase):
