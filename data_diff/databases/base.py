@@ -81,6 +81,27 @@ from data_diff.utils import ArithString, ArithUUID, is_uuid, join_iter, safezip
 logger = logging.getLogger("database")
 
 
+def _parse_datetime(s: str) -> datetime:
+    """Parse an ISO 8601 datetime string with the following normalizations:
+
+    - Strips leading/trailing whitespace
+    - Converts 'Z' timezone suffix to '+00:00' for Python 3.10 compatibility
+    - Truncates sub-microsecond precision (>6 fractional digits) to microseconds
+    """
+    s = s.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    dot = s.rfind(".")
+    if dot != -1:
+        frac_end = dot + 1
+        while frac_end < len(s) and s[frac_end].isdigit():
+            frac_end += 1
+        frac_digits = frac_end - dot - 1
+        if frac_digits > 6:
+            s = s[: dot + 7] + s[frac_end:]
+    return datetime.fromisoformat(s)
+
+
 class CompileError(Exception):
     pass
 
@@ -985,9 +1006,23 @@ class Database(abc.ABC):
                 return None
             return int(res)
         elif res_type is datetime:
-            res = _one(_one(res))
+            if not res:
+                raise ValueError("Datetime query returned 0 rows, expected 1")
+            row = _one(res)
+            if not row:
+                raise ValueError("Datetime query row is empty, expected 1 column")
+            res = _one(row)
             if isinstance(res, str):
-                res = datetime.fromisoformat(res[:23])  # TODO use a better parsing method
+                try:
+                    res = _parse_datetime(res)
+                except ValueError:
+                    logger.error(
+                        "Failed to parse datetime string returned by database %s: %r (sql: %s)",
+                        self.name,
+                        res,
+                        sql_code,
+                    )
+                    raise
             return res
         elif res_type is tuple:
             if len(res) != 1:
