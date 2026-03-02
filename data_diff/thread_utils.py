@@ -47,6 +47,7 @@ class PriorityThreadPoolExecutor:
 
     def _dispatch(self) -> None:
         while True:
+            proxy = None
             try:
                 _priority, _count, item = self._queue.get()
                 if item is _SENTINEL:
@@ -55,7 +56,7 @@ class PriorityThreadPoolExecutor:
                 inner_future = self._inner.submit(fn, *args, **kwargs)
                 inner_future.add_done_callback(lambda f, p=proxy: _chain_future(f, p))
             except Exception as exc:
-                if "proxy" in dir() and not proxy.done():
+                if proxy is not None and not proxy.done():
                     try:
                         proxy.set_exception(exc)
                     except Exception:
