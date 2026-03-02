@@ -192,8 +192,8 @@ class MsSQL(ThreadedDatabase):
             connection = self._mssql.connect(**self._args)
             return connection
         except self._mssql.Error as error:
-            msg = str(error)
-            if "SSL" in msg or "certificate" in msg.lower():
+            lower_msg = str(error).lower()
+            if "ssl" in lower_msg or "certificate" in lower_msg:
                 raise ConnectError(
                     f"TLS certificate validation failed connecting to "
                     f"{self._args.get('server', 'unknown host')}. "

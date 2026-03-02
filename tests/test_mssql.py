@@ -53,6 +53,18 @@ class TestMsSQLConnectionErrors:
             with pytest.raises(ConnectError, match="TrustServerCertificate"):
                 db.create_connection()
 
+    def test_certificate_only_keyword_triggers_actionable_message(self):
+        db = _make_mssql()
+        mock_mssql = MagicMock()
+        mock_mssql.Error = type("Error", (Exception,), {})
+        mock_mssql.connect.side_effect = mock_mssql.Error(
+            "The remote certificate was rejected by the verification procedure"
+        )
+
+        with patch("data_diff.databases.mssql.import_mssql", return_value=mock_mssql):
+            with pytest.raises(ConnectError, match="TrustServerCertificate"):
+                db.create_connection()
+
     def test_non_ssl_error_passes_through(self):
         db = _make_mssql()
         mock_mssql = MagicMock()
