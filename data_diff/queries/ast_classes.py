@@ -635,8 +635,19 @@ class Cte(ExprNode, ITable):
 
     @property
     def schema(self) -> Schema:
-        # TODO add cte to schema
-        return self.table.schema
+        s = self.table.schema
+        if not self.params:
+            return s
+        if s is None:
+            raise QueryBuilderError(f"CTE params were provided ({self.params!r}) but the source table has no schema")
+        if len(self.params) != len(s):
+            raise QueryBuilderError(
+                f"CTE params length ({len(self.params)}) does not match source schema length ({len(s)})"
+            )
+        result = type(s)(dict(zip(self.params, s.values())))
+        if len(result) != len(s):
+            raise QueryBuilderError(f"CTE params contain duplicate column names: {self.params!r}")
+        return result
 
 
 def _named_exprs_as_aliases(named_exprs):
