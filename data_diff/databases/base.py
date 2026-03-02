@@ -84,6 +84,8 @@ logger = logging.getLogger("database")
 def _parse_datetime(s: str) -> datetime:
     """Parse a datetime string, truncating sub-microsecond precision if present."""
     s = s.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
     dot = s.rfind(".")
     if dot != -1:
         frac_end = dot + 1
@@ -1001,7 +1003,11 @@ class Database(abc.ABC):
         elif res_type is datetime:
             res = _one(_one(res))
             if isinstance(res, str):
-                res = _parse_datetime(res)
+                try:
+                    res = _parse_datetime(res)
+                except ValueError:
+                    logger.error("Failed to parse datetime string returned by database: %r", res)
+                    raise
             return res
         elif res_type is tuple:
             if len(res) != 1:
