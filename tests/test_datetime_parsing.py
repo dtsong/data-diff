@@ -51,6 +51,15 @@ class TestParseDatetime:
         result = _parse_datetime("2022-06-03T12:24:35.123456789Z")
         assert result == datetime(2022, 6, 3, 12, 24, 35, 123456, tzinfo=timezone.utc)
 
+    def test_all_nines_nanoseconds_truncates_not_rounds(self):
+        result = _parse_datetime("2022-06-03 23:59:59.999999999")
+        assert result == datetime(2022, 6, 3, 23, 59, 59, 999999)
+
+    def test_negative_timezone_offset(self):
+        result = _parse_datetime("2022-06-03T12:24:35-05:00")
+        expected_tz = timezone(timedelta(hours=-5))
+        assert result == datetime(2022, 6, 3, 12, 24, 35, tzinfo=expected_tz)
+
     def test_trailing_dot_raises(self):
         with pytest.raises(ValueError):
             _parse_datetime("2022-06-03T12:24:35.")

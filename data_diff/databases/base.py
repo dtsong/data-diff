@@ -82,7 +82,12 @@ logger = logging.getLogger("database")
 
 
 def _parse_datetime(s: str) -> datetime:
-    """Parse a datetime string, truncating sub-microsecond precision if present."""
+    """Parse an ISO 8601 datetime string with the following normalizations:
+
+    - Strips leading/trailing whitespace
+    - Converts 'Z' timezone suffix to '+00:00' for Python 3.10 compatibility
+    - Truncates sub-microsecond precision (>6 fractional digits) to microseconds
+    """
     s = s.strip()
     if s.endswith("Z"):
         s = s[:-1] + "+00:00"
@@ -1001,12 +1006,22 @@ class Database(abc.ABC):
                 return None
             return int(res)
         elif res_type is datetime:
-            res = _one(_one(res))
+            if not res:
+                raise ValueError("Datetime query returned 0 rows, expected 1")
+            row = _one(res)
+            if not row:
+                raise ValueError("Datetime query row is empty, expected 1 column")
+            res = _one(row)
             if isinstance(res, str):
                 try:
                     res = _parse_datetime(res)
                 except ValueError:
-                    logger.error("Failed to parse datetime string returned by database: %r", res)
+                    logger.error(
+                        "Failed to parse datetime string returned by database %s: %r (sql: %s)",
+                        self.name,
+                        res,
+                        sql_code,
+                    )
                     raise
             return res
         elif res_type is tuple:
