@@ -5,8 +5,9 @@ from datetime import datetime
 
 import attrs
 
-from data_diff.abcs.database_types import FractionalType, TemporalType
+from data_diff.abcs.database_types import FractionalType, Integer, TemporalType, Text, Timestamp, TimestampTZ
 from data_diff.databases.base import BaseDialect, CompileError, Compiler, Database
+from data_diff.databases.postgresql import PostgresqlDialect
 from data_diff.queries.api import coalesce, code, cte, outerjoin, table, this, when
 from data_diff.queries.ast_classes import QueryBuilderError, Random
 from data_diff.utils import CaseInsensitiveDict, CaseSensitiveDict
@@ -443,3 +444,72 @@ class TestCompilerThreadSafety(unittest.TestCase):
         self.assertEqual(len(results), num_threads)
         with_results = [r for r in results if "WITH" in r]
         self.assertGreater(len(with_results), 0, "At least one result should have a WITH clause")
+
+
+class TestTableOpTypeValidation(unittest.TestCase):
+    def test_union_matching_types_succeeds(self):
+        schema_a = CaseSensitiveDict({"x": Integer(), "y": Text()})
+        schema_b = CaseSensitiveDict({"x": Integer(), "y": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        u = a.union(b)
+        # Should not raise
+        self.assertEqual(len(u.schema), 2)
+
+    def test_union_mismatched_types_raises(self):
+        schema_a = CaseSensitiveDict({"x": Integer(), "y": Text()})
+        schema_b = CaseSensitiveDict({"x": Text(), "y": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        u = a.union(b)
+        with self.assertRaises(QueryBuilderError):
+            _ = u.schema
+
+    def test_intersect_mismatched_types_raises(self):
+        schema_a = CaseSensitiveDict({"x": Integer()})
+        schema_b = CaseSensitiveDict({"x": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        op = a.intersect(b)
+        with self.assertRaises(QueryBuilderError):
+            _ = op.schema
+
+    def test_minus_mismatched_types_raises(self):
+        schema_a = CaseSensitiveDict({"x": Integer()})
+        schema_b = CaseSensitiveDict({"x": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        op = a.minus(b)
+        with self.assertRaises(QueryBuilderError):
+            _ = op.schema
+
+    def test_type_property_validates_when_types_available(self):
+        # TableOp.type delegates to table1/table2.type; Select returns None
+        # so type validation is a pass-through for Select-wrapped tables.
+        # The real enforcement is in .schema validation above.
+        schema_a = CaseSensitiveDict({"x": Integer()})
+        schema_b = CaseSensitiveDict({"x": Integer()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        u = a.union(b)
+        # Both raw tables return None for .type, so no mismatch
+        self.assertIsNone(u.type)
+
+
+class TestPostgresqlTimestampNormalization(unittest.TestCase):
+    def setUp(self):
+        self.dialect = PostgresqlDialect()
+
+    def test_timestamp_uses_timestamp_cast(self):
+        result = self.dialect.normalize_timestamp("col", Timestamp(precision=6, rounds=True))
+        self.assertIn("::timestamp(6)", result)
+        self.assertNotIn("::timestamptz", result)
+
+    def test_timestamptz_uses_timestamptz_cast(self):
+        result = self.dialect.normalize_timestamp("col", TimestampTZ(precision=6, rounds=True))
+        self.assertIn("::timestamptz(6)", result)
+
+    def test_padding_uses_length_based_calculation(self):
+        result = self.dialect.normalize_timestamp("col", Timestamp(precision=3, rounds=True))
+        self.assertIn("length(", result)
+        self.assertIn("RPAD(LEFT(", result)
