@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from data_diff.queries.api import commit, current_timestamp
 from tests.common import CONN_STRINGS, DiffTestCase
-from tests.test_diff_tables import test_each_database
+from tests.test_diff_tables import apply_each_database
 
 
 def run_datadiff_cli(*args):
@@ -19,12 +19,12 @@ def run_datadiff_cli(*args):
     except subprocess.CalledProcessError as e:
         logging.error(e.stderr)
         raise
-    if stderr:
-        raise Exception(stderr)
+    if p.returncode != 0:
+        raise Exception(stderr or stdout)
     return stdout.splitlines()
 
 
-@test_each_database
+@apply_each_database
 class TestCLI(DiffTestCase):
     src_schema = {"id": int, "datetime": datetime, "text_comment": str}
 

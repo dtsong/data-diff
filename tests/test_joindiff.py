@@ -8,8 +8,8 @@ from data_diff.queries.api import commit, table
 from data_diff.queries.ast_classes import TablePath
 from data_diff.table_segment import TableSegment
 from tests.common import (
+    apply_to_each_database,
     random_table_suffix,
-    test_each_database_in_list,
 )
 from tests.test_diff_tables import DiffTestCase
 
@@ -26,10 +26,10 @@ TEST_DATABASES = {
     db.Vertica,
 }
 
-test_each_database = test_each_database_in_list(TEST_DATABASES)
+apply_each_database = apply_to_each_database(TEST_DATABASES)
 
 
-@test_each_database_in_list({db.Snowflake, db.BigQuery, db.DuckDB})
+@apply_to_each_database({db.Snowflake, db.BigQuery, db.DuckDB})
 class TestCompositeKey(DiffTestCase):
     src_schema = {"id": int, "userid": int, "movieid": int, "rating": float, "timestamp": datetime}
     dst_schema = {"id": int, "userid": int, "movieid": int, "rating": float, "timestamp": datetime}
@@ -72,7 +72,7 @@ class TestCompositeKey(DiffTestCase):
         assert self.differ.stats["exclusive_count"] == 2
 
 
-@test_each_database
+@apply_each_database
 class TestJoindiff(DiffTestCase):
     src_schema = {"id": int, "userid": int, "movieid": int, "rating": float, "timestamp": datetime}
     dst_schema = {"id": int, "userid": int, "movieid": int, "rating": float, "timestamp": datetime}
@@ -266,7 +266,7 @@ class TestJoindiff(DiffTestCase):
         self.assertRaises(ValueError, list, x)
 
 
-@test_each_database_in_list(
+@apply_to_each_database(
     d for d in TEST_DATABASES if d.DIALECT_CLASS.SUPPORTS_PRIMARY_KEY and d.SUPPORTS_UNIQUE_CONSTAINT
 )
 class TestUniqueConstraint(DiffTestCase):

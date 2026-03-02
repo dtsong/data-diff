@@ -11,7 +11,7 @@ from data_diff.joindiff_tables import JoinDiffer
 from data_diff.queries.api import commit, table, this
 from data_diff.table_segment import TableSegment, Vector, split_space
 from data_diff.utils import ArithAlphanumeric, numberToAlphanum
-from tests.common import DiffTestCase, str_to_checksum, table_segment, test_each_database_in_list
+from tests.common import DiffTestCase, apply_to_each_database, str_to_checksum, table_segment
 
 TEST_DATABASES = {
     db.MySQL,
@@ -25,7 +25,7 @@ TEST_DATABASES = {
     db.Vertica,
 }
 
-test_each_database: Callable = test_each_database_in_list(TEST_DATABASES)
+apply_each_database: Callable = apply_to_each_database(TEST_DATABASES)
 
 
 class TestUtils(unittest.TestCase):
@@ -37,7 +37,7 @@ class TestUtils(unittest.TestCase):
                     assert len(r) == n, f"split_space({i}, {j + n}, {n}) = {(r)}"
 
 
-@test_each_database
+@apply_each_database
 class TestDates(DiffTestCase):
     src_schema = {"id": int, "datetime": datetime, "text_comment": str}
 
@@ -124,7 +124,7 @@ class TestDates(DiffTestCase):
         self.assertEqual(len(list(differ.diff_tables(a, b))), 1)
 
 
-@test_each_database
+@apply_each_database
 class TestDiffTables(DiffTestCase):
     src_schema = {"id": int, "userid": int, "movieid": int, "rating": float, "timestamp": datetime}
     dst_schema = {"id": int, "userid": int, "movieid": int, "rating": float, "timestamp": datetime}
@@ -299,7 +299,7 @@ class TestDiffTables(DiffTestCase):
         self.assertEqual(expected, diff)
 
 
-@test_each_database
+@apply_each_database
 class TestDiffTables2(DiffTestCase):
     src_schema = {"id": int, "rating": float, "timestamp": datetime}
     dst_schema = {"id2": int, "rating2": float, "timestamp2": datetime}
@@ -344,7 +344,7 @@ class TestDiffTables2(DiffTestCase):
         assert diff == []
 
 
-@test_each_database
+@apply_each_database
 class TestUUIDs(DiffTestCase):
     src_schema = {"id": str, "text_comment": str}
 
@@ -391,7 +391,7 @@ class TestUUIDs(DiffTestCase):
         self.assertRaises(ValueError, list, differ.diff_tables(a_empty, self.b))
 
 
-@test_each_database_in_list(TEST_DATABASES - {db.MySQL})
+@apply_to_each_database(TEST_DATABASES - {db.MySQL})
 class TestAlphanumericKeys(DiffTestCase):
     src_schema = {"id": str, "text_comment": str}
 
@@ -436,7 +436,7 @@ class TestAlphanumericKeys(DiffTestCase):
         self.assertRaises(NotImplementedError, list, differ.diff_tables(self.a, self.b))
 
 
-@test_each_database_in_list(TEST_DATABASES - {db.MySQL})
+@apply_to_each_database(TEST_DATABASES - {db.MySQL})
 class TestVaryingAlphanumericKeys(DiffTestCase):
     src_schema = {"id": str, "text_comment": str}
 
@@ -493,7 +493,7 @@ class TestVaryingAlphanumericKeys(DiffTestCase):
         self.assertRaises(NotImplementedError, list, differ.diff_tables(self.a, self.b))
 
 
-@test_each_database
+@apply_each_database
 class TestTableSegment(DiffTestCase):
     def setUp(self) -> None:
         super().setUp()
@@ -526,7 +526,7 @@ class TestTableSegment(DiffTestCase):
         )
 
 
-@test_each_database
+@apply_each_database
 class TestTableUUID(DiffTestCase):
     src_schema = {"id": str, "text_comment": str}
 
@@ -560,7 +560,7 @@ class TestTableUUID(DiffTestCase):
         self.assertEqual(diff, [("-", (str(self.null_uuid), None))])
 
 
-@test_each_database
+@apply_each_database
 class TestTableNullRowChecksum(DiffTestCase):
     src_schema = {"id": str, "text_comment": str}
 
@@ -608,7 +608,7 @@ class TestTableNullRowChecksum(DiffTestCase):
         self.assertEqual(diff, [("-", (str(self.null_uuid), None))])
 
 
-@test_each_database
+@apply_each_database
 class TestConcatMultipleColumnWithNulls(DiffTestCase):
     src_schema = {"id": str, "c1": str, "c2": str}
     dst_schema = {"id": str, "c1": str, "c2": str}
@@ -674,7 +674,7 @@ class TestConcatMultipleColumnWithNulls(DiffTestCase):
         self.assertEqual(diff, self.diffs)
 
 
-@test_each_database
+@apply_each_database
 class TestTableTableEmpty(DiffTestCase):
     src_schema = {"id": str, "text_comment": str}
     dst_schema = {"id": str, "text_comment": str}
@@ -770,7 +770,7 @@ class TestDuplicateTables(DiffTestCase):
         self.assertEqual(diff, self.diffs)
 
 
-@test_each_database
+@apply_each_database
 class TestCompoundKeySimple1(DiffTestCase):
     src_schema = {"id": int, "id2": int}
     dst_schema = {"id": int, "id2": int}
@@ -804,7 +804,7 @@ class TestCompoundKeySimple1(DiffTestCase):
         self.assertEqual(diff, expected)
 
 
-@test_each_database
+@apply_each_database
 class TestCompoundKeySimple2(DiffTestCase):
     src_schema = {"id": int, "id2": int}
     dst_schema = {"id": int, "id2": int}
@@ -838,7 +838,7 @@ class TestCompoundKeySimple2(DiffTestCase):
         self.assertEqual(diff, expected)
 
 
-@test_each_database
+@apply_each_database
 class TestCompoundKeySimple3(DiffTestCase):
     src_schema = {"id": int, "id2": int}
     dst_schema = {"id": int, "id2": int}
@@ -872,7 +872,7 @@ class TestCompoundKeySimple3(DiffTestCase):
         self.assertEqual(diff, expected)
 
 
-@test_each_database
+@apply_each_database
 class TestCompoundKeyAlphanum(DiffTestCase):
     src_schema = {"id": str, "id2": int, "comment": str}
     dst_schema = {"id": str, "id2": int, "comment": str}

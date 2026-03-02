@@ -13,10 +13,10 @@ from data_diff.queries.extras import NormalizeAsString
 from data_diff.schema import create_schema
 from tests.common import (
     TEST_MYSQL_CONN_STRING,
+    apply_to_each_database,
     get_conn,
     random_table_suffix,
     str_to_checksum,
-    test_each_database_in_list,
 )
 
 TEST_DATABASES = {
@@ -33,7 +33,7 @@ TEST_DATABASES = {
     dbs.MsSQL,
 }
 
-test_each_database: Callable = test_each_database_in_list(TEST_DATABASES)
+apply_each_database: Callable = apply_to_each_database(TEST_DATABASES)
 
 
 class TestDatabase(unittest.TestCase):
@@ -69,7 +69,7 @@ class TestConnect(unittest.TestCase):
         self.assertRaises(ValueError, connect, "snowflake://user:pass@account:443/db/schema")
 
 
-@test_each_database
+@apply_each_database
 class TestQueries(unittest.TestCase):
     def test_current_timestamp(self):
         db = get_conn(self.db_cls)
@@ -77,7 +77,7 @@ class TestQueries(unittest.TestCase):
         assert isinstance(res, datetime), (res, type(res))
 
     def test_correct_timezone(self):
-        if self.db_cls in [dbs.MsSQL]:
+        if self.db_cls in [dbs.MsSQL, dbs.DuckDB]:
             self.skipTest("No support for session tz.")
         name = "tbl_" + random_table_suffix()
 
@@ -124,10 +124,10 @@ class TestQueries(unittest.TestCase):
             db_connection.query(tbl.drop())
 
 
-@test_each_database
+@apply_each_database
 class TestThreePartIds(unittest.TestCase):
     def test_three_part_support(self):
-        if self.db_cls not in [dbs.PostgreSQL, dbs.Redshift, dbs.Snowflake, dbs.DuckDB, dbs.MsSQL]:
+        if self.db_cls not in [dbs.PostgreSQL, dbs.Redshift, dbs.Snowflake, dbs.MsSQL]:
             self.skipTest("Limited support for 3 part ids")
 
         table_name = "tbl_" + random_table_suffix()
@@ -149,7 +149,7 @@ class TestThreePartIds(unittest.TestCase):
                 db_connection.query(part.drop())
 
 
-@test_each_database
+@apply_each_database
 class TestNumericPrecisionParsing(unittest.TestCase):
     def test_specified_precision(self):
         name = "tbl_" + random_table_suffix()
@@ -190,10 +190,10 @@ class TestNumericPrecisionParsing(unittest.TestCase):
 closeable_databases = TEST_DATABASES.copy()
 closeable_databases.discard(dbs.Presto)
 
-test_closeable_databases: Callable = test_each_database_in_list(closeable_databases)
+apply_closeable_databases: Callable = apply_to_each_database(closeable_databases)
 
 
-@test_closeable_databases
+@apply_closeable_databases
 class TestCloseMethod(unittest.TestCase):
     def test_close_connection(self):
         database: Database = get_conn(self.db_cls)

@@ -1,5 +1,9 @@
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+
+import attrs
 
 from data_diff.abcs.database_types import FractionalType, TemporalType
 from data_diff.databases.base import BaseDialect, CompileError, Compiler, Database
@@ -345,3 +349,46 @@ class TestQuery(unittest.TestCase):
 
         q = c.dialect.compile(c, tablesample(nonzero, 10))
         self.assertEqual(q, "SELECT * FROM points WHERE (x > 0) AND (y > 0) TABLESAMPLE BERNOULLI (10)")
+
+
+class TestCompilerThreadSafety(unittest.TestCase):
+    def test_shared_state_after_evolve(self):
+        c = Compiler(MockDatabase())
+        child = attrs.evolve(c, root=False)
+        self.assertIs(child._lock, c._lock)
+        self.assertIs(child._counter, c._counter)
+        self.assertIs(child._subqueries, c._subqueries)
+
+    def test_counter_thread_safety(self):
+        c = Compiler(MockDatabase())
+        num_threads = 50
+
+        def generate_name():
+            return c.new_unique_name("t")
+
+        with ThreadPoolExecutor(max_workers=num_threads) as pool:
+            futures = [pool.submit(generate_name) for _ in range(num_threads)]
+            results = [f.result() for f in as_completed(futures)]
+
+        self.assertEqual(len(results), num_threads)
+        self.assertEqual(len(set(results)), num_threads, "All generated names should be unique")
+
+    def test_subqueries_thread_safety(self):
+        """Compile CTEs concurrently on a shared Compiler through the production code path."""
+        c = Compiler(MockDatabase())
+        num_threads = 50
+        barrier = threading.Barrier(num_threads, timeout=30)
+
+        def compile_cte(i):
+            barrier.wait()
+            t = table(f"src_{i}")
+            expr = cte(t, name=f"cte_{i}")
+            return c.database.dialect.compile(c, expr.select(this.id))
+
+        with ThreadPoolExecutor(max_workers=num_threads) as pool:
+            futures = [pool.submit(compile_cte, i) for i in range(num_threads)]
+            results = [f.result() for f in as_completed(futures)]
+
+        self.assertEqual(len(results), num_threads)
+        with_results = [r for r in results if "WITH" in r]
+        self.assertGreater(len(with_results), 0, "At least one result should have a WITH clause")

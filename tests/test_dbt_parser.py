@@ -2,6 +2,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
+import pytest
+
+pytest.importorskip("dbt", reason="dbt-core is required for dbt tests")
+
 from data_diff.dbt import (
     DbtParser,
 )
