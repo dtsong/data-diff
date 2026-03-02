@@ -635,8 +635,14 @@ class Cte(ExprNode, ITable):
 
     @property
     def schema(self) -> Schema:
-        # TODO add cte to schema
-        return self.table.schema
+        s = self.table.schema
+        if s is None or not self.params:
+            return s
+        if len(self.params) != len(s):
+            raise QueryBuilderError(
+                f"CTE params length ({len(self.params)}) does not match source schema length ({len(s)})"
+            )
+        return type(s)(dict(zip(self.params, s.values())))
 
 
 def _named_exprs_as_aliases(named_exprs):

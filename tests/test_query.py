@@ -8,7 +8,7 @@ import attrs
 from data_diff.abcs.database_types import FractionalType, TemporalType
 from data_diff.databases.base import BaseDialect, CompileError, Compiler, Database
 from data_diff.queries.api import coalesce, code, cte, outerjoin, table, this, when
-from data_diff.queries.ast_classes import Random
+from data_diff.queries.ast_classes import QueryBuilderError, Random
 from data_diff.utils import CaseInsensitiveDict, CaseSensitiveDict
 
 
@@ -195,6 +195,30 @@ class TestQuery(unittest.TestCase):
 
         expected = "WITH tmp1(y) AS (SELECT x FROM a) SELECT y FROM tmp1"
         assert normalize_spaces(c.dialect.compile(c, t3)) == expected
+
+    def test_cte_schema(self):
+        # Non-parameterized CTE passes through source schema unchanged
+        t = table("a", schema=CaseSensitiveDict({"x": int, "y": str}))
+        ct = cte(t.select(this.x, this.y))
+        assert ct.schema == t.schema
+
+        # Parameterized CTE reflects renamed columns with correct types
+        t = table("a", schema=CaseSensitiveDict({"x": int, "y": str}))
+        ct = cte(t.select(this.x, this.y), params=["a", "b"])
+        s = ct.schema
+        assert list(s.keys()) == ["a", "b"]
+        assert list(s.values()) == [int, str]
+
+        # Param count mismatch raises QueryBuilderError
+        t = table("a", schema=CaseSensitiveDict({"x": int, "y": str}))
+        ct = cte(t.select(this.x, this.y), params=["a"])
+        with self.assertRaises(QueryBuilderError):
+            _ = ct.schema
+
+        # Schema type (case sensitivity) is preserved
+        t = table("a", schema=CaseInsensitiveDict({"X": int, "Y": str}))
+        ct = cte(t.select(this.X, this.Y), params=["A", "B"])
+        assert isinstance(ct.schema, CaseInsensitiveDict)
 
     def test_funcs(self):
         c = Compiler(MockDatabase())
