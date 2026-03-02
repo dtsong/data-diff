@@ -215,10 +215,26 @@ class TestQuery(unittest.TestCase):
         with self.assertRaises(QueryBuilderError):
             _ = ct.schema
 
-        # Schema type (case sensitivity) is preserved
+        # Schema type (case sensitivity) is preserved with correct values
         t = table("a", schema=CaseInsensitiveDict({"X": int, "Y": str}))
         ct = cte(t.select(this.X, this.Y), params=["A", "B"])
-        assert isinstance(ct.schema, CaseInsensitiveDict)
+        s = ct.schema
+        assert isinstance(s, CaseInsensitiveDict)
+        assert s["A"] is int
+        assert s["a"] is int
+        assert s["B"] is str
+
+        # Duplicate params raises QueryBuilderError
+        t = table("a", schema=CaseSensitiveDict({"x": int, "y": str}))
+        ct = cte(t.select(this.x, this.y), params=["a", "a"])
+        with self.assertRaises(QueryBuilderError):
+            _ = ct.schema
+
+        # Case-insensitive duplicate params raises QueryBuilderError
+        t = table("a", schema=CaseInsensitiveDict({"X": int, "Y": str}))
+        ct = cte(t.select(this.X, this.Y), params=["A", "a"])
+        with self.assertRaises(QueryBuilderError):
+            _ = ct.schema
 
     def test_funcs(self):
         c = Compiler(MockDatabase())

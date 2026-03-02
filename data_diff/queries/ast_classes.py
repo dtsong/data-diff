@@ -642,7 +642,10 @@ class Cte(ExprNode, ITable):
             raise QueryBuilderError(
                 f"CTE params length ({len(self.params)}) does not match source schema length ({len(s)})"
             )
-        return type(s)(dict(zip(self.params, s.values())))
+        result = type(s)(dict(zip(self.params, s.values())))
+        if len(result) != len(s):
+            raise QueryBuilderError(f"CTE params contain duplicate column names: {self.params!r}")
+        return result
 
 
 def _named_exprs_as_aliases(named_exprs):
