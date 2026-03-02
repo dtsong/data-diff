@@ -214,7 +214,7 @@ class BaseDialect(abc.ABC):
         "Parse the given table name into a DbPath"
         return parse_table_name(name)
 
-    def compile(self, compiler: Compiler, elem, params=None) -> str:
+    def compile(self, compiler: Compiler, elem) -> str:
         if compiler.root and isinstance(elem, Compilable) and not isinstance(elem, Root):
             from data_diff.queries.ast_classes import Select
 
