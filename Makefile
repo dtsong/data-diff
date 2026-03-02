@@ -16,7 +16,7 @@ down:
 test-unit:
 	uv run pytest tests/test_query.py tests/test_utils.py -x
 
-## Run full test suite against PG + MySQL + ClickHouse (starts containers if needed)
+## Run full test suite against PG + MySQL (starts containers if needed)
 ## To also test Presto/Trino/Vertica, run `make up-full` first and set:
 ##   export DATADIFF_PRESTO_URI="presto://test@localhost:8080/memory/default"
 ##   export DATADIFF_TRINO_URI="trino://test@localhost:8081/memory/default"

@@ -9,7 +9,7 @@ from data_diff.abcs.database_types import FractionalType, Integer, TemporalType,
 from data_diff.databases.base import BaseDialect, CompileError, Compiler, Database
 from data_diff.databases.postgresql import PostgresqlDialect
 from data_diff.queries.api import coalesce, code, cte, outerjoin, table, this, when
-from data_diff.queries.ast_classes import QueryBuilderError, Random
+from data_diff.queries.ast_classes import QueryBuilderError, Random, TableOp
 from data_diff.utils import CaseInsensitiveDict, CaseSensitiveDict
 
 
@@ -511,6 +511,35 @@ class TestTableOpTypeValidation(unittest.TestCase):
             _ = op.schema
         self.assertIn("col_a", str(ctx.exception))
         self.assertIn("UNION", str(ctx.exception))
+
+    def test_type_mismatch_raises_query_builder_error(self):
+        """TableOp.type raises when both sides have non-None but different types."""
+
+        class FakeTable:
+            schema = None
+
+            def __init__(self, type_val):
+                self.type = type_val
+
+        op = TableOp("UNION", FakeTable(Integer()), FakeTable(Text()))
+        with self.assertRaises(QueryBuilderError) as ctx:
+            _ = op.type
+        self.assertIn("UNION", str(ctx.exception))
+        self.assertIn("Integer", str(ctx.exception))
+        self.assertIn("Text", str(ctx.exception))
+
+    def test_type_matching_returns_type(self):
+        """TableOp.type returns the type when both sides match."""
+
+        class FakeTable:
+            schema = None
+
+            def __init__(self, type_val):
+                self.type = type_val
+
+        t = Integer()
+        op = TableOp("UNION", FakeTable(t), FakeTable(Integer()))
+        self.assertIsInstance(op.type, Integer)
 
 
 class TestPostgresqlTimestampNormalization(unittest.TestCase):

@@ -45,6 +45,8 @@ jobs:
         run: docker compose --profile full up -d --wait mysql postgres clickhouse
 
       - name: Run tests
+        env:
+          DATADIFF_CLICKHOUSE_URI: "clickhouse://clickhouse:Password1@localhost:9000/clickhouse"
         run: |
           uv run pytest tests/ \
             -o addopts="--timeout=300 --tb=short" \

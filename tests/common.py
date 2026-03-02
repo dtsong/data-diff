@@ -29,9 +29,7 @@ TEST_REDSHIFT_CONN_STRING: str = os.environ.get("DATADIFF_REDSHIFT_URI") or None
 TEST_ORACLE_CONN_STRING: str = None
 TEST_DATABRICKS_CONN_STRING: str = os.environ.get("DATADIFF_DATABRICKS_URI")
 TEST_TRINO_CONN_STRING: str = os.environ.get("DATADIFF_TRINO_URI") or None
-TEST_CLICKHOUSE_CONN_STRING: str = (
-    os.environ.get("DATADIFF_CLICKHOUSE_URI") or "clickhouse://clickhouse:Password1@localhost:9000/clickhouse"
-)
+TEST_CLICKHOUSE_CONN_STRING: str = os.environ.get("DATADIFF_CLICKHOUSE_URI") or None
 TEST_VERTICA_CONN_STRING: str = os.environ.get("DATADIFF_VERTICA_URI") or None
 TEST_DUCKDB_CONN_STRING: str = "duckdb://main:@:memory:"
 TEST_MSSQL_CONN_STRING: str = os.environ.get("DATADIFF_MSSQL_URI")
