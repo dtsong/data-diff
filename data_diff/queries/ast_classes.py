@@ -555,6 +555,8 @@ class TableOp(ExprNode, ITable, Root):
     def type(self):
         t1 = self.table1.type
         t2 = self.table2.type
+        if t1 is None or t2 is None:
+            return t1 or t2
         if type(t1) is not type(t2):
             raise QueryBuilderError(f"Type mismatch in {self.op}: got {type(t1).__name__} and {type(t2).__name__}")
         return t1
@@ -564,7 +566,7 @@ class TableOp(ExprNode, ITable, Root):
         s1 = self.table1.schema
         s2 = self.table2.schema
         if len(s1) != len(s2):
-            raise ValueError(f"TableOp requires tables with matching schema lengths, got {len(s1)} and {len(s2)}.")
+            raise QueryBuilderError(f"Schema length mismatch in {self.op}: got {len(s1)} and {len(s2)} columns")
         for (name1, type1), (name2, type2) in zip(s1.items(), s2.items()):
             if type(type1) is not type(type2):
                 raise QueryBuilderError(

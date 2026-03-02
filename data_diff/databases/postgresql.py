@@ -114,10 +114,14 @@ class PostgresqlDialect(BaseDialect):
         return f"md5({s})"
 
     def normalize_timestamp(self, value: str, coltype: TemporalType) -> str:
-        def _add_padding(coltype: TemporalType, timestamp6: str):
-            return (
-                f"RPAD(LEFT({timestamp6}, length({timestamp6}) - (6 - {coltype.precision})), length({timestamp6}), '0')"
-            )
+        def _truncate_and_pad(coltype: TemporalType, timestamp6: str):
+            """Truncate a 6-digit-precision timestamp to target precision, then zero-pad back to 6 digits."""
+            truncated = f"LEFT({timestamp6}, length({timestamp6}) - (6 - {coltype.precision}))"
+            return f"RPAD({truncated}, length({timestamp6}), '0')"
+
+        def _zero_pad(coltype: TemporalType, already_truncated: str):
+            """Zero-pad an already-truncated timestamp back to 6 fractional digits."""
+            return f"RPAD({already_truncated}, length({already_truncated}) + (6 - {coltype.precision}), '0')"
 
         try:
             is_date = coltype.is_date
@@ -157,12 +161,13 @@ class PostgresqlDialect(BaseDialect):
                 f"+ interval '{interval}', 'YYYY-mm-dd HH24:MI:SS.US')) - (6-{coltype.precision}))"
             )
 
-            padded = _add_padding(coltype, rounded_timestamp)
+            padded = _zero_pad(coltype, rounded_timestamp)
             return f"{null_case_begin} {padded} {null_case_end}"
 
         else:
-            rounded_timestamp = f"to_char({value}::timestamp(6), 'YYYY-mm-dd HH24:MI:SS.US')"
-            padded = _add_padding(coltype, rounded_timestamp)
+            ts_type = "timestamptz(6)" if isinstance(coltype, TimestampTZ) else "timestamp(6)"
+            rounded_timestamp = f"to_char({value}::{ts_type}, 'YYYY-mm-dd HH24:MI:SS.US')"
+            padded = _truncate_and_pad(coltype, rounded_timestamp)
             return padded
 
     def normalize_number(self, value: str, coltype: FractionalType) -> str:

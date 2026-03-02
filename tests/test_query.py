@@ -483,17 +483,34 @@ class TestTableOpTypeValidation(unittest.TestCase):
         with self.assertRaises(QueryBuilderError):
             _ = op.schema
 
-    def test_type_property_validates_when_types_available(self):
-        # TableOp.type delegates to table1/table2.type; Select returns None
-        # so type validation is a pass-through for Select-wrapped tables.
-        # The real enforcement is in .schema validation above.
+    def test_type_property_with_none_types_passes(self):
         schema_a = CaseSensitiveDict({"x": Integer()})
         schema_b = CaseSensitiveDict({"x": Integer()})
         a = table("a", schema=schema_a)
         b = table("b", schema=schema_b)
         u = a.union(b)
-        # Both raw tables return None for .type, so no mismatch
+        # Select-wrapped tables return None for .type — should pass without error
         self.assertIsNone(u.type)
+
+    def test_schema_length_mismatch_raises_query_builder_error(self):
+        schema_a = CaseSensitiveDict({"x": Integer(), "y": Text()})
+        schema_b = CaseSensitiveDict({"x": Integer()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        op = a.union(b)
+        with self.assertRaises(QueryBuilderError):
+            _ = op.schema
+
+    def test_schema_mismatch_error_includes_details(self):
+        schema_a = CaseSensitiveDict({"col_a": Integer()})
+        schema_b = CaseSensitiveDict({"col_b": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        op = a.union(b)
+        with self.assertRaises(QueryBuilderError) as ctx:
+            _ = op.schema
+        self.assertIn("col_a", str(ctx.exception))
+        self.assertIn("UNION", str(ctx.exception))
 
 
 class TestPostgresqlTimestampNormalization(unittest.TestCase):
@@ -508,8 +525,26 @@ class TestPostgresqlTimestampNormalization(unittest.TestCase):
     def test_timestamptz_uses_timestamptz_cast(self):
         result = self.dialect.normalize_timestamp("col", TimestampTZ(precision=6, rounds=True))
         self.assertIn("::timestamptz(6)", result)
+        self.assertNotIn("::timestamp(6)", result)
 
-    def test_padding_uses_length_based_calculation(self):
+    def test_rounding_padding_uses_zero_pad(self):
         result = self.dialect.normalize_timestamp("col", Timestamp(precision=3, rounds=True))
         self.assertIn("length(", result)
+        # Rounding branch uses RPAD without LEFT (already truncated)
+        self.assertIn("RPAD(", result)
+
+    def test_non_rounding_uses_truncate_and_pad(self):
+        result = self.dialect.normalize_timestamp("col", Timestamp(precision=3, rounds=False))
+        self.assertIn("length(", result)
         self.assertIn("RPAD(LEFT(", result)
+        self.assertNotIn("CASE WHEN", result)
+
+    def test_non_rounding_timestamptz_uses_timestamptz_cast(self):
+        result = self.dialect.normalize_timestamp("col", TimestampTZ(precision=6, rounds=False))
+        self.assertIn("::timestamptz(6)", result)
+        self.assertNotIn("::timestamp(6)", result)
+
+    def test_precision_zero_rounding(self):
+        result = self.dialect.normalize_timestamp("col", Timestamp(precision=0, rounds=True))
+        self.assertIn("RPAD(", result)
+        self.assertIn("(6 - 0)", result)
