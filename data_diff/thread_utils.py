@@ -1,42 +1,59 @@
 import itertools
+import threading
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures.thread import _WorkItem
+from concurrent.futures import Future, ThreadPoolExecutor
 from queue import PriorityQueue
 from time import sleep
 from typing import Any
 
 import attrs
 
+_SENTINEL = object()
 
-class AutoPriorityQueue(PriorityQueue):
-    """Overrides PriorityQueue to automatically get the priority from _WorkItem.kwargs
 
-    We also assign a unique id for each item, to avoid making comparisons on _WorkItem.
-    As a side effect, items with the same priority are returned FIFO.
+def _chain_future(source: Future, dest: Future) -> None:
+    """Propagate the result or exception from source to dest."""
+    if source.cancelled():
+        dest.cancel()
+    elif exc := source.exception():
+        dest.set_exception(exc)
+    else:
+        dest.set_result(source.result())
+
+
+class PriorityThreadPoolExecutor:
+    """Thread pool that executes tasks in priority order.
+
+    Uses a dispatcher thread to pull work from a PriorityQueue and
+    submit it to a standard ThreadPoolExecutor. No CPython internals.
     """
 
-    _counter = itertools.count().__next__
+    def __init__(self, max_workers: int | None = None) -> None:
+        self._inner = ThreadPoolExecutor(max_workers=max_workers)
+        self._queue: PriorityQueue = PriorityQueue()
+        self._counter = itertools.count().__next__
+        self._dispatcher = threading.Thread(target=self._dispatch, daemon=True)
+        self._dispatcher.start()
 
-    def put(self, item: _WorkItem | None, block=True, timeout=None) -> None:
-        priority = item.kwargs.pop("priority") if item is not None else 0
-        super().put((-priority, self._counter(), item), block, timeout)
+    def _dispatch(self) -> None:
+        while True:
+            _priority, _count, item = self._queue.get()
+            if item is _SENTINEL:
+                break
+            fn, args, kwargs, proxy = item
+            inner_future = self._inner.submit(fn, *args, **kwargs)
+            inner_future.add_done_callback(lambda f, p=proxy: _chain_future(f, p))
 
-    def get(self, block=True, timeout=None) -> _WorkItem | None:
-        _p, _c, work_item = super().get(block, timeout)
-        return work_item
+    def submit(self, fn, /, *args, priority: int = 0, **kwargs) -> Future:
+        proxy = Future()
+        self._queue.put((-priority, self._counter(), (fn, args, kwargs, proxy)))
+        return proxy
 
-
-class PriorityThreadPoolExecutor(ThreadPoolExecutor):
-    """Overrides ThreadPoolExecutor to use AutoPriorityQueue
-
-    XXX WARNING: Might break in future versions of Python
-    """
-
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
-        self._work_queue = AutoPriorityQueue()
+    def shutdown(self, wait: bool = True) -> None:
+        self._queue.put((0, self._counter(), _SENTINEL))
+        self._dispatcher.join()
+        self._inner.shutdown(wait=wait)
 
 
 @attrs.define(frozen=False, init=False)
@@ -47,7 +64,7 @@ class ThreadedYielder(Iterable):
     Priority for the iterator can be provided via the keyword argument 'priority'. (higher runs first)
     """
 
-    _pool: ThreadPoolExecutor
+    _pool: PriorityThreadPoolExecutor
     _futures: deque
     _yield: deque = attrs.field(alias="_yield")  # Python keyword!
     _exception: None = None
