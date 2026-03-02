@@ -636,8 +636,10 @@ class Cte(ExprNode, ITable):
     @property
     def schema(self) -> Schema:
         s = self.table.schema
-        if s is None or not self.params:
+        if not self.params:
             return s
+        if s is None:
+            raise QueryBuilderError(f"CTE params were provided ({self.params!r}) but the source table has no schema")
         if len(self.params) != len(s):
             raise QueryBuilderError(
                 f"CTE params length ({len(self.params)}) does not match source schema length ({len(s)})"

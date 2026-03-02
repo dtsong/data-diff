@@ -236,6 +236,17 @@ class TestQuery(unittest.TestCase):
         with self.assertRaises(QueryBuilderError):
             _ = ct.schema
 
+        # Params on a schema-less source raises QueryBuilderError
+        t = table("a")
+        ct = cte(t.select(this.x), params=["renamed"])
+        with self.assertRaises(QueryBuilderError):
+            _ = ct.schema
+
+        # Empty params list passes through source schema unchanged
+        t = table("a", schema=CaseSensitiveDict({"x": int}))
+        ct = cte(t.select(this.x), params=[])
+        assert ct.schema == t.schema
+
     def test_funcs(self):
         c = Compiler(MockDatabase())
         t = table("a")
