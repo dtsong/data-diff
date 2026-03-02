@@ -81,6 +81,20 @@ from data_diff.utils import ArithString, ArithUUID, is_uuid, join_iter, safezip
 logger = logging.getLogger("database")
 
 
+def _parse_datetime(s: str) -> datetime:
+    """Parse a datetime string, truncating sub-microsecond precision if present."""
+    s = s.strip()
+    dot = s.rfind(".")
+    if dot != -1:
+        frac_end = dot + 1
+        while frac_end < len(s) and s[frac_end].isdigit():
+            frac_end += 1
+        frac_digits = frac_end - dot - 1
+        if frac_digits > 6:
+            s = s[: dot + 7] + s[frac_end:]
+    return datetime.fromisoformat(s)
+
+
 class CompileError(Exception):
     pass
 
@@ -987,7 +1001,7 @@ class Database(abc.ABC):
         elif res_type is datetime:
             res = _one(_one(res))
             if isinstance(res, str):
-                res = datetime.fromisoformat(res[:23])  # TODO use a better parsing method
+                res = _parse_datetime(res)
             return res
         elif res_type is tuple:
             if len(res) != 1:
