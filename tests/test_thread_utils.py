@@ -1,8 +1,13 @@
 import threading
+from concurrent.futures import Future
 
 import pytest
 
-from data_diff.thread_utils import PriorityThreadPoolExecutor, ThreadedYielder
+from data_diff.thread_utils import (
+    PriorityThreadPoolExecutor,
+    ThreadedYielder,
+    _chain_future,
+)
 
 
 class TestPriorityThreadPoolExecutor:
@@ -95,6 +100,62 @@ class TestPriorityThreadPoolExecutor:
         import data_diff.thread_utils as mod
 
         assert not hasattr(mod, "_WorkItem")
+
+    def test_submit_forwards_args_and_kwargs(self):
+        """submit() correctly forwards positional and keyword arguments."""
+        pool = PriorityThreadPoolExecutor(max_workers=1)
+        future = pool.submit(lambda a, b, c=None: (a, b, c), 1, 2, c=3)
+        assert future.result(timeout=5) == (1, 2, 3)
+        pool.shutdown()
+
+    def test_submit_after_shutdown_raises(self):
+        """submit() raises RuntimeError after shutdown() is called."""
+        pool = PriorityThreadPoolExecutor(max_workers=1)
+        pool.shutdown()
+        with pytest.raises(RuntimeError, match="cannot submit after shutdown"):
+            pool.submit(lambda: None)
+
+    def test_shutdown_drains_high_priority_work(self):
+        """Sentinel does not preempt queued higher-priority work."""
+        gate = threading.Event()
+        results = []
+
+        pool = PriorityThreadPoolExecutor(max_workers=1)
+        pool.submit(lambda: gate.wait(), priority=0)
+
+        for i in range(5):
+            pool.submit(lambda i=i: results.append(i), priority=10)
+
+        gate.set()
+        pool.shutdown(wait=True)
+        assert sorted(results) == list(range(5))
+
+
+class TestChainFuture:
+    def test_propagates_result(self):
+        """Chains result from source to dest."""
+        source = Future()
+        dest = Future()
+        source.set_result(42)
+        _chain_future(source, dest)
+        assert dest.result() == 42
+
+    def test_propagates_exception(self):
+        """Chains exception from source to dest."""
+        source = Future()
+        dest = Future()
+        source.set_exception(ValueError("oops"))
+        _chain_future(source, dest)
+        with pytest.raises(ValueError, match="oops"):
+            dest.result()
+
+    def test_skips_cancelled_dest(self):
+        """Does not raise if dest was already cancelled."""
+        source = Future()
+        dest = Future()
+        dest.cancel()
+        source.set_result(42)
+        _chain_future(source, dest)  # should not raise
 
 
 class TestThreadedYielder:

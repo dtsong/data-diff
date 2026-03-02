@@ -13,13 +13,21 @@ _SENTINEL = object()
 
 
 def _chain_future(source: Future, dest: Future) -> None:
-    """Propagate the result or exception from source to dest."""
-    if source.cancelled():
-        dest.cancel()
-    elif exc := source.exception():
-        dest.set_exception(exc)
-    else:
-        dest.set_result(source.result())
+    """Propagate the outcome (result, exception, or cancellation) from source to dest."""
+    if dest.cancelled():
+        return
+    try:
+        if source.cancelled():
+            dest.cancel()
+        elif exc := source.exception():
+            dest.set_exception(exc)
+        else:
+            dest.set_result(source.result())
+    except Exception as exc:
+        try:
+            dest.set_exception(exc)
+        except Exception:
+            pass
 
 
 class PriorityThreadPoolExecutor:
@@ -33,26 +41,39 @@ class PriorityThreadPoolExecutor:
         self._inner = ThreadPoolExecutor(max_workers=max_workers)
         self._queue: PriorityQueue = PriorityQueue()
         self._counter = itertools.count().__next__
+        self._shutdown = False
         self._dispatcher = threading.Thread(target=self._dispatch, daemon=True)
         self._dispatcher.start()
 
     def _dispatch(self) -> None:
         while True:
-            _priority, _count, item = self._queue.get()
-            if item is _SENTINEL:
-                break
-            fn, args, kwargs, proxy = item
-            inner_future = self._inner.submit(fn, *args, **kwargs)
-            inner_future.add_done_callback(lambda f, p=proxy: _chain_future(f, p))
+            try:
+                _priority, _count, item = self._queue.get()
+                if item is _SENTINEL:
+                    break
+                fn, args, kwargs, proxy = item
+                inner_future = self._inner.submit(fn, *args, **kwargs)
+                inner_future.add_done_callback(lambda f, p=proxy: _chain_future(f, p))
+            except Exception as exc:
+                if "proxy" in dir() and not proxy.done():
+                    try:
+                        proxy.set_exception(exc)
+                    except Exception:
+                        pass
 
     def submit(self, fn, /, *args, priority: int = 0, **kwargs) -> Future:
+        if self._shutdown:
+            raise RuntimeError("cannot submit after shutdown")
         proxy = Future()
         self._queue.put((-priority, self._counter(), (fn, args, kwargs, proxy)))
         return proxy
 
     def shutdown(self, wait: bool = True) -> None:
-        self._queue.put((0, self._counter(), _SENTINEL))
-        self._dispatcher.join()
+        self._shutdown = True
+        self._queue.put((float("inf"), self._counter(), _SENTINEL))
+        self._dispatcher.join(timeout=30)
+        if self._dispatcher.is_alive():
+            raise RuntimeError("PriorityThreadPoolExecutor dispatcher did not shut down within 30s")
         self._inner.shutdown(wait=wait)
 
 
