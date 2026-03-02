@@ -1,5 +1,9 @@
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+
+import attrs
 
 from data_diff.abcs.database_types import FractionalType, TemporalType
 from data_diff.databases.base import BaseDialect, CompileError, Compiler, Database
@@ -345,3 +349,44 @@ class TestQuery(unittest.TestCase):
 
         q = c.dialect.compile(c, tablesample(nonzero, 10))
         self.assertEqual(q, "SELECT * FROM points WHERE (x > 0) AND (y > 0) TABLESAMPLE BERNOULLI (10)")
+
+
+class TestCompilerThreadSafety(unittest.TestCase):
+    def test_lock_shared_after_evolve(self):
+        c = Compiler(MockDatabase())
+        child = attrs.evolve(c, root=False)
+        self.assertIs(child._lock, c._lock)
+
+    def test_counter_thread_safety(self):
+        c = Compiler(MockDatabase())
+        num_threads = 50
+        results = []
+
+        def generate_name():
+            return c.new_unique_name("t")
+
+        with ThreadPoolExecutor(max_workers=num_threads) as pool:
+            futures = [pool.submit(generate_name) for _ in range(num_threads)]
+            results = [f.result() for f in as_completed(futures)]
+
+        self.assertEqual(len(results), num_threads)
+        self.assertEqual(len(set(results)), num_threads, "All generated names should be unique")
+
+    def test_subqueries_thread_safety(self):
+        c = Compiler(MockDatabase())
+        num_threads = 50
+        barrier = threading.Barrier(num_threads)
+
+        def add_subquery(i):
+            barrier.wait()
+            with c._lock:
+                c._subqueries[f"cte_{i}"] = f"SELECT {i}"
+
+        with ThreadPoolExecutor(max_workers=num_threads) as pool:
+            futures = [pool.submit(add_subquery, i) for i in range(num_threads)]
+            for f in as_completed(futures):
+                f.result()
+
+        self.assertEqual(len(c._subqueries), num_threads)
+        for i in range(num_threads):
+            self.assertIn(f"cte_{i}", c._subqueries)

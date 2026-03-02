@@ -103,22 +103,25 @@ class Compiler(AbstractCompiler):
     in_join: bool = False  # Compilation runtime flag
 
     _table_context: list = attrs.field(factory=list)  # List[ITable]
-    _subqueries: dict[str, Any] = attrs.field(factory=dict)  # XXX not thread-safe
+    _subqueries: dict[str, Any] = attrs.field(factory=dict)
     root: bool = True
 
     _counter: list = attrs.field(factory=lambda: [0])
+    _lock: threading.Lock = attrs.field(factory=threading.Lock)
 
     @property
     def dialect(self) -> "BaseDialect":
         return self.database.dialect
 
     def new_unique_name(self, prefix="tmp") -> str:
-        self._counter[0] += 1
-        return f"{prefix}{self._counter[0]}"
+        with self._lock:
+            self._counter[0] += 1
+            return f"{prefix}{self._counter[0]}"
 
     def new_unique_table_name(self, prefix="tmp") -> DbPath:
-        self._counter[0] += 1
-        table_name = f"{prefix}{self._counter[0]}_{'%x' % random.randrange(2**32)}"
+        with self._lock:
+            self._counter[0] += 1
+            table_name = f"{prefix}{self._counter[0]}_{'%x' % random.randrange(2**32)}"
         return self.database.dialect.parse_table_name(table_name)
 
     def add_table_context(self, *tables: Sequence, **kw) -> Self:
@@ -222,8 +225,9 @@ class BaseDialect(abc.ABC):
 
         res = self._compile(compiler, elem)
         if compiler.root and compiler._subqueries:
-            subq = ", ".join(f"\n  {k} AS ({v})" for k, v in compiler._subqueries.items())
-            compiler._subqueries.clear()
+            with compiler._lock:
+                subq = ", ".join(f"\n  {k} AS ({v})" for k, v in compiler._subqueries.items())
+                compiler._subqueries.clear()
             return f"WITH {subq}\n{res}"
         return res
 
@@ -350,7 +354,8 @@ class BaseDialect(abc.ABC):
 
         name = elem.name or parent_c.new_unique_name()
         name_params = f"{name}({', '.join(elem.params)})" if elem.params else name
-        parent_c._subqueries[name_params] = compiled
+        with parent_c._lock:
+            parent_c._subqueries[name_params] = compiled
 
         return name
 

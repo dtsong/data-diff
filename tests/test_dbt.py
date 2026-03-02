@@ -2,6 +2,10 @@ import os
 import unittest
 from unittest.mock import ANY, MagicMock, Mock, patch
 
+import pytest
+
+pytest.importorskip("dbt", reason="dbt-core is required for dbt tests")
+
 from data_diff.dbt import (
     TDiffVars,
     _get_diff_vars,
