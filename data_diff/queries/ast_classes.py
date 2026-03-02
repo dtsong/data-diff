@@ -38,7 +38,7 @@ class ExprNode(Compilable):
             if k == "source_table":
                 # Skip data-sources, we're only interested in data-parameters
                 continue
-            if not isinstance(vs, (list, tuple)):
+            if not isinstance(vs, list | tuple):
                 vs = [vs]
             for v in vs:
                 if isinstance(v, ExprNode):
@@ -689,7 +689,7 @@ class This:
         return _ResolveColumn(name)
 
     def __getitem__(self, name):
-        if isinstance(name, (list, tuple)):
+        if isinstance(name, list | tuple):
             return [_ResolveColumn(n) for n in name]
         return _ResolveColumn(name)
 
@@ -794,10 +794,3 @@ class InsertToTable(Statement):
 @attrs.define(frozen=True, eq=False)
 class Commit(Statement):
     """Generate a COMMIT statement, if we're in the middle of a transaction, or in auto-commit. Otherwise SKIP."""
-
-
-@attrs.define(frozen=True, eq=False)
-class Param(ExprNode, ITable):  # TODO: Unused?
-    """A value placeholder, to be specified at compilation time using the `cv_params` context variable."""
-
-    name: str

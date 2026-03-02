@@ -1,5 +1,4 @@
 import abc
-import contextvars
 import decimal
 import functools
 import logging
@@ -65,7 +64,6 @@ from data_diff.queries.ast_classes import (
     InsertToTable,
     IsDistinctFrom,
     Join,
-    Param,
     Random,
     Root,
     TableAlias,
@@ -81,7 +79,6 @@ from data_diff.schema import RawColumnInfo
 from data_diff.utils import ArithString, ArithUUID, is_uuid, join_iter, safezip
 
 logger = logging.getLogger("database")
-cv_params = contextvars.ContextVar("params")
 
 
 class CompileError(Exception):
@@ -114,10 +111,6 @@ class Compiler(AbstractCompiler):
     @property
     def dialect(self) -> "BaseDialect":
         return self.database.dialect
-
-    # TODO: DEPRECATED: Remove once the dialect is used directly in all places.
-    def compile(self, elem, params=None) -> str:
-        return self.dialect.compile(self, elem, params)
 
     def new_unique_name(self, prefix="tmp") -> str:
         self._counter[0] += 1
@@ -221,10 +214,7 @@ class BaseDialect(abc.ABC):
         "Parse the given table name into a DbPath"
         return parse_table_name(name)
 
-    def compile(self, compiler: Compiler, elem, params=None) -> str:
-        if params:
-            cv_params.set(params)
-
+    def compile(self, compiler: Compiler, elem) -> str:
         if compiler.root and isinstance(elem, Compilable) and not isinstance(elem, Root):
             from data_diff.queries.ast_classes import Select
 
@@ -268,8 +258,6 @@ class BaseDialect(abc.ABC):
             return self.render_cte(c, elem)
         elif isinstance(elem, Commit):
             return self.render_commit(c, elem)
-        elif isinstance(elem, Param):
-            return self.render_param(c, elem)
         elif isinstance(elem, NormalizeAsString):
             return self.render_normalizeasstring(c, elem)
         elif isinstance(elem, ApplyFuncAndNormalizeAsString):
@@ -368,10 +356,6 @@ class BaseDialect(abc.ABC):
 
     def render_commit(self, c: Compiler, elem: Commit) -> str:
         return "COMMIT" if not c.database.is_autocommit else SKIP
-
-    def render_param(self, c: Compiler, elem: Param) -> str:
-        params = cv_params.get()
-        return self._compile(c, params[elem.name])
 
     def render_normalizeasstring(self, c: Compiler, elem: NormalizeAsString) -> str:
         expr = self.compile(c, elem.expr)
