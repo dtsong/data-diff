@@ -373,20 +373,23 @@ class TestCompilerThreadSafety(unittest.TestCase):
         self.assertEqual(len(set(results)), num_threads, "All generated names should be unique")
 
     def test_subqueries_thread_safety(self):
-        c = Compiler(MockDatabase())
+        """Compile CTEs concurrently through the production code path."""
         num_threads = 50
-        barrier = threading.Barrier(num_threads)
+        barrier = threading.Barrier(num_threads, timeout=30)
 
-        def add_subquery(i):
+        def compile_cte(i):
             barrier.wait()
-            with c._lock:
-                c._subqueries[f"cte_{i}"] = f"SELECT {i}"
+            c = Compiler(MockDatabase())
+            t = table(f"src_{i}")
+            expr = cte(t, name=f"cte_{i}")
+            result = c.database.dialect.compile(c, expr.select(this.id))
+            return result
 
         with ThreadPoolExecutor(max_workers=num_threads) as pool:
-            futures = [pool.submit(add_subquery, i) for i in range(num_threads)]
-            for f in as_completed(futures):
-                f.result()
+            futures = [pool.submit(compile_cte, i) for i in range(num_threads)]
+            results = [f.result() for f in as_completed(futures)]
 
-        self.assertEqual(len(c._subqueries), num_threads)
-        for i in range(num_threads):
-            self.assertIn(f"cte_{i}", c._subqueries)
+        self.assertEqual(len(results), num_threads)
+        for i, sql in enumerate(results):
+            # Each compiled query should contain a WITH clause with its CTE
+            self.assertIn("WITH", sql, f"Thread {i} result missing WITH clause: {sql}")

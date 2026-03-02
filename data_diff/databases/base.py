@@ -224,11 +224,12 @@ class BaseDialect(abc.ABC):
             elem = Select(columns=[elem])
 
         res = self._compile(compiler, elem)
-        if compiler.root and compiler._subqueries:
+        if compiler.root:
             with compiler._lock:
-                subq = ", ".join(f"\n  {k} AS ({v})" for k, v in compiler._subqueries.items())
-                compiler._subqueries.clear()
-            return f"WITH {subq}\n{res}"
+                if compiler._subqueries:
+                    subq = ", ".join(f"\n  {k} AS ({v})" for k, v in compiler._subqueries.items())
+                    compiler._subqueries.clear()
+                    return f"WITH {subq}\n{res}"
         return res
 
     def _compile(self, compiler: Compiler, elem) -> str:
