@@ -5,10 +5,11 @@ from datetime import datetime
 
 import attrs
 
-from data_diff.abcs.database_types import FractionalType, TemporalType
+from data_diff.abcs.database_types import FractionalType, Integer, TemporalType, Text, Timestamp, TimestampTZ
 from data_diff.databases.base import BaseDialect, CompileError, Compiler, Database
+from data_diff.databases.postgresql import PostgresqlDialect
 from data_diff.queries.api import coalesce, code, cte, outerjoin, table, this, when
-from data_diff.queries.ast_classes import QueryBuilderError, Random
+from data_diff.queries.ast_classes import QueryBuilderError, Random, TableOp
 from data_diff.utils import CaseInsensitiveDict, CaseSensitiveDict
 
 
@@ -443,3 +444,136 @@ class TestCompilerThreadSafety(unittest.TestCase):
         self.assertEqual(len(results), num_threads)
         with_results = [r for r in results if "WITH" in r]
         self.assertGreater(len(with_results), 0, "At least one result should have a WITH clause")
+
+
+class TestTableOpTypeValidation(unittest.TestCase):
+    def test_union_matching_types_succeeds(self):
+        schema_a = CaseSensitiveDict({"x": Integer(), "y": Text()})
+        schema_b = CaseSensitiveDict({"x": Integer(), "y": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        u = a.union(b)
+        # Should not raise
+        self.assertEqual(len(u.schema), 2)
+
+    def test_union_mismatched_types_raises(self):
+        schema_a = CaseSensitiveDict({"x": Integer(), "y": Text()})
+        schema_b = CaseSensitiveDict({"x": Text(), "y": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        u = a.union(b)
+        with self.assertRaises(QueryBuilderError):
+            _ = u.schema
+
+    def test_intersect_mismatched_types_raises(self):
+        schema_a = CaseSensitiveDict({"x": Integer()})
+        schema_b = CaseSensitiveDict({"x": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        op = a.intersect(b)
+        with self.assertRaises(QueryBuilderError):
+            _ = op.schema
+
+    def test_minus_mismatched_types_raises(self):
+        schema_a = CaseSensitiveDict({"x": Integer()})
+        schema_b = CaseSensitiveDict({"x": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        op = a.minus(b)
+        with self.assertRaises(QueryBuilderError):
+            _ = op.schema
+
+    def test_type_property_with_none_types_passes(self):
+        schema_a = CaseSensitiveDict({"x": Integer()})
+        schema_b = CaseSensitiveDict({"x": Integer()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        u = a.union(b)
+        # Select-wrapped tables return None for .type — should pass without error
+        self.assertIsNone(u.type)
+
+    def test_schema_length_mismatch_raises_query_builder_error(self):
+        schema_a = CaseSensitiveDict({"x": Integer(), "y": Text()})
+        schema_b = CaseSensitiveDict({"x": Integer()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        op = a.union(b)
+        with self.assertRaises(QueryBuilderError):
+            _ = op.schema
+
+    def test_schema_mismatch_error_includes_details(self):
+        schema_a = CaseSensitiveDict({"col_a": Integer()})
+        schema_b = CaseSensitiveDict({"col_b": Text()})
+        a = table("a", schema=schema_a)
+        b = table("b", schema=schema_b)
+        op = a.union(b)
+        with self.assertRaises(QueryBuilderError) as ctx:
+            _ = op.schema
+        self.assertIn("col_a", str(ctx.exception))
+        self.assertIn("UNION", str(ctx.exception))
+
+    def test_type_mismatch_raises_query_builder_error(self):
+        """TableOp.type raises when both sides have non-None but different types."""
+
+        class FakeTable:
+            schema = None
+
+            def __init__(self, type_val):
+                self.type = type_val
+
+        op = TableOp("UNION", FakeTable(Integer()), FakeTable(Text()))
+        with self.assertRaises(QueryBuilderError) as ctx:
+            _ = op.type
+        self.assertIn("UNION", str(ctx.exception))
+        self.assertIn("Integer", str(ctx.exception))
+        self.assertIn("Text", str(ctx.exception))
+
+    def test_type_matching_returns_type(self):
+        """TableOp.type returns the type when both sides match."""
+
+        class FakeTable:
+            schema = None
+
+            def __init__(self, type_val):
+                self.type = type_val
+
+        t = Integer()
+        op = TableOp("UNION", FakeTable(t), FakeTable(Integer()))
+        self.assertIsInstance(op.type, Integer)
+
+
+class TestPostgresqlTimestampNormalization(unittest.TestCase):
+    def setUp(self):
+        self.dialect = PostgresqlDialect()
+
+    def test_timestamp_uses_timestamp_cast(self):
+        result = self.dialect.normalize_timestamp("col", Timestamp(precision=6, rounds=True))
+        self.assertIn("::timestamp(6)", result)
+        self.assertNotIn("::timestamptz", result)
+
+    def test_timestamptz_uses_timestamptz_cast(self):
+        result = self.dialect.normalize_timestamp("col", TimestampTZ(precision=6, rounds=True))
+        self.assertIn("::timestamptz(6)", result)
+        self.assertNotIn("::timestamp(6)", result)
+
+    def test_rounding_padding_uses_zero_pad(self):
+        result = self.dialect.normalize_timestamp("col", Timestamp(precision=3, rounds=True))
+        self.assertIn("length(", result)
+        # Rounding branch uses RPAD without LEFT (already truncated)
+        self.assertIn("RPAD(", result)
+
+    def test_non_rounding_uses_truncate_and_pad(self):
+        result = self.dialect.normalize_timestamp("col", Timestamp(precision=3, rounds=False))
+        self.assertIn("length(", result)
+        self.assertIn("RPAD(LEFT(", result)
+        self.assertNotIn("CASE WHEN", result)
+
+    def test_non_rounding_timestamptz_uses_timestamptz_cast(self):
+        result = self.dialect.normalize_timestamp("col", TimestampTZ(precision=6, rounds=False))
+        self.assertIn("::timestamptz(6)", result)
+        self.assertNotIn("::timestamp(6)", result)
+
+    def test_precision_zero_rounding(self):
+        result = self.dialect.normalize_timestamp("col", Timestamp(precision=0, rounds=True))
+        self.assertIn("RPAD(", result)
+        self.assertIn("(6 - 0)", result)

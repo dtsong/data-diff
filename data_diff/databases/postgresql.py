@@ -25,7 +25,6 @@ from data_diff.databases.base import (
     CHECKSUM_HEXDIGITS,
     CHECKSUM_OFFSET,
     MD5_HEXDIGITS,
-    TIMESTAMP_PRECISION_POS,
     BaseDialect,
     ConnectError,
     ThreadedDatabase,
@@ -115,8 +114,14 @@ class PostgresqlDialect(BaseDialect):
         return f"md5({s})"
 
     def normalize_timestamp(self, value: str, coltype: TemporalType) -> str:
-        def _add_padding(coltype: TemporalType, timestamp6: str):
-            return f"RPAD(LEFT({timestamp6}, {TIMESTAMP_PRECISION_POS + coltype.precision}), {TIMESTAMP_PRECISION_POS + 6}, '0')"
+        def _truncate_and_pad(coltype: TemporalType, timestamp6: str):
+            """Truncate a 6-digit-precision timestamp to target precision, then zero-pad back to 6 digits."""
+            truncated = f"LEFT({timestamp6}, length({timestamp6}) - (6 - {coltype.precision}))"
+            return f"RPAD({truncated}, length({timestamp6}), '0')"
+
+        def _zero_pad(coltype: TemporalType, already_truncated: str):
+            """Zero-pad an already-truncated timestamp back to 6 fractional digits."""
+            return f"RPAD({already_truncated}, length({already_truncated}) + (6 - {coltype.precision}), '0')"
 
         try:
             is_date = coltype.is_date
@@ -141,30 +146,28 @@ class PostgresqlDialect(BaseDialect):
             null_case_end = "END"
 
             # 294277 or 4714 BC would be out of range, make sure we can't round to that
-            # TODO test timezones for overflow?
             max_timestamp = "294276-12-31 23:59:59.0000"
             min_timestamp = "4713-01-01 00:00:00.00 BC"
-            timestamp = f"least('{max_timestamp}'::timestamp(6), {value}::timestamp(6))"
-            timestamp = f"greatest('{min_timestamp}'::timestamp(6), {timestamp})"
+            ts_type = "timestamptz(6)" if isinstance(coltype, TimestampTZ) else "timestamp(6)"
+            timestamp = f"least('{max_timestamp}'::{ts_type}, {value}::{ts_type})"
+            timestamp = f"greatest('{min_timestamp}'::{ts_type}, {timestamp})"
 
             interval = format((0.5 * (10 ** (-coltype.precision))), f".{coltype.precision + 1}f")
 
             rounded_timestamp = (
-                f"left(to_char(least('{max_timestamp}'::timestamp, {timestamp})"
+                f"left(to_char(least('{max_timestamp}'::{ts_type}, {timestamp})"
                 f"+ interval '{interval}', 'YYYY-mm-dd HH24:MI:SS.US'),"
-                f"length(to_char(least('{max_timestamp}'::timestamp, {timestamp})"
+                f"length(to_char(least('{max_timestamp}'::{ts_type}, {timestamp})"
                 f"+ interval '{interval}', 'YYYY-mm-dd HH24:MI:SS.US')) - (6-{coltype.precision}))"
             )
 
-            padded = _add_padding(coltype, rounded_timestamp)
+            padded = _zero_pad(coltype, rounded_timestamp)
             return f"{null_case_begin} {padded} {null_case_end}"
 
-            # TODO years with > 4 digits not padded correctly
-            # current w/ precision 6: 294276-12-31 23:59:59.0000
-            # should be 294276-12-31 23:59:59.000000
         else:
-            rounded_timestamp = f"to_char({value}::timestamp(6), 'YYYY-mm-dd HH24:MI:SS.US')"
-            padded = _add_padding(coltype, rounded_timestamp)
+            ts_type = "timestamptz(6)" if isinstance(coltype, TimestampTZ) else "timestamp(6)"
+            rounded_timestamp = f"to_char({value}::{ts_type}, 'YYYY-mm-dd HH24:MI:SS.US')"
+            padded = _truncate_and_pad(coltype, rounded_timestamp)
             return padded
 
     def normalize_number(self, value: str, coltype: FractionalType) -> str:

@@ -483,7 +483,8 @@ class Join(ExprNode, ITable, Root):
     def schema(self) -> Schema:
         if not self.columns:
             raise ValueError("Join must specify columns explicitly (SELECT * not yet implemented).")
-        s = self.source_tables[0].schema  # TODO validate types match between both tables
+        # No cross-table type validation needed: join combines columns from both tables rather than unioning rows
+        s = self.source_tables[0].schema
         return type(s)({c.name: c.type for c in self.columns})
 
     def on(self, *exprs) -> Self:
@@ -553,15 +554,28 @@ class TableOp(ExprNode, ITable, Root):
 
     @property
     def type(self):
-        # TODO ensure types of both tables are compatible
-        return self.table1.type
+        t1 = self.table1.type
+        t2 = self.table2.type
+        if t1 is None or t2 is None:
+            return None
+        if type(t1) is not type(t2):
+            raise QueryBuilderError(f"Type mismatch in {self.op}: got {type(t1).__name__} and {type(t2).__name__}")
+        return t1
 
     @property
     def schema(self) -> Schema:
         s1 = self.table1.schema
         s2 = self.table2.schema
+        if s1 is None or s2 is None:
+            raise QueryBuilderError(f"Cannot validate {self.op}: one or both tables have no schema defined")
         if len(s1) != len(s2):
-            raise ValueError(f"TableOp requires tables with matching schema lengths, got {len(s1)} and {len(s2)}.")
+            raise QueryBuilderError(f"Schema length mismatch in {self.op}: got {len(s1)} and {len(s2)} columns")
+        for (name1, type1), (name2, type2) in zip(s1.items(), s2.items()):
+            if type(type1) is not type(type2):
+                raise QueryBuilderError(
+                    f"Type mismatch in {self.op}: column {name1!r} is {type(type1).__name__} "
+                    f"but column {name2!r} is {type(type2).__name__}"
+                )
         return s1
 
 

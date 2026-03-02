@@ -12,6 +12,7 @@ services:
       restart: always
       volumes:
         - postgresql-data:/var/lib/postgresql/data:delegated
+        - ./dev/seed/postgres:/docker-entrypoint-initdb.d:ro
       ports:
         - '5432:5432'
       expose:
@@ -42,6 +43,7 @@ services:
       restart: always
       volumes:
         - mysql-data:/var/lib/mysql:delegated
+        - ./dev/seed/mysql:/docker-entrypoint-initdb.d:ro
       user: mysql
       ports:
         - '3306:3306'
@@ -61,6 +63,7 @@ services:
     clickhouse:
       container_name: dd-clickhouse
       image: clickhouse/clickhouse-server:24.3
+      profiles: [full]
       restart: always
       volumes:
           - clickhouse-data:/var/lib/clickhouse:delegated
@@ -88,6 +91,7 @@ services:
 
     # prestodb.dbapi.connect(host="127.0.0.1", user="presto").cursor().execute('SELECT * FROM system.runtime.nodes')
     presto:
+        profiles: [full]
         container_name: dd-presto
         build:
             context: ./dev
@@ -101,6 +105,7 @@ services:
             - local
 
     trino:
+        profiles: [full]
         container_name: dd-trino
         image: 'trinodb/trino:439'
         hostname: trino
@@ -118,6 +123,7 @@ services:
 
     vertica:
       container_name: dd-vertica
+      profiles: [full]
       image: vertica/vertica-ce:24.1.0-0
       restart: always
       volumes:
