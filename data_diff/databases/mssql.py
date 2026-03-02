@@ -178,9 +178,6 @@ class MsSQL(ThreadedDatabase):
         self._args = {k: v for k, v in args.items() if v is not None}
         self._args["driver"] = "{ODBC Driver 18 for SQL Server}"
 
-        # TODO temp dev debug
-        self._args["TrustServerCertificate"] = "yes"
-
         try:
             self.default_database = self._args["database"]
             self.default_schema = self._args["schema"]
@@ -195,6 +192,16 @@ class MsSQL(ThreadedDatabase):
             connection = self._mssql.connect(**self._args)
             return connection
         except self._mssql.Error as error:
+            lower_msg = str(error).lower()
+            if "ssl" in lower_msg or "certificate" in lower_msg:
+                raise ConnectError(
+                    f"TLS certificate validation failed connecting to "
+                    f"{self._args.get('server', 'unknown host')}. "
+                    f"ODBC Driver 18 requires encrypted connections by default. "
+                    f"If using a self-signed certificate, pass "
+                    f"TrustServerCertificate='yes' in your connection URI or TOML config. "
+                    f"Original error: {error}"
+                ) from error
             raise ConnectError(*error.args) from error
 
     def select_table_schema(self, path: DbPath) -> str:
