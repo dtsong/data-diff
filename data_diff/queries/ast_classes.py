@@ -8,7 +8,7 @@ from data_diff.abcs.compiler import Compilable
 from data_diff.abcs.database_types import DbPath
 from data_diff.queries.base import SKIP, SqeletonError, args_as_tuple
 from data_diff.schema import Schema
-from data_diff.utils import ArithString
+from data_diff.utils import ArithString, safezip
 
 
 class QueryBuilderError(SqeletonError):
@@ -485,7 +485,7 @@ class Join(ExprNode, ITable, Root):
             raise ValueError("Join must specify columns explicitly (SELECT * not yet implemented).")
         # No cross-table type validation needed: join combines columns from both tables rather than unioning rows
         s = self.source_tables[0].schema
-        return type(s)({c.name: c.type for c in self.columns})
+        return s.new({c.name: c.type for c in self.columns})
 
     def on(self, *exprs) -> Self:
         """Add an ON clause, for filtering the result of the cartesian product (i.e. the JOIN)"""
@@ -596,7 +596,7 @@ class Select(ExprNode, ITable, Root):
         s = self.table.schema
         if s is None or self.columns is None:
             return s
-        return type(s)({c.name: c.type for c in self.columns})
+        return s.new({c.name: c.type for c in self.columns})
 
     @classmethod
     def make(cls, table: ITable, distinct: bool = SKIP, optimizer_hints: str = SKIP, **kwargs):
@@ -641,24 +641,35 @@ class Select(ExprNode, ITable, Root):
 class Cte(ExprNode, ITable):
     table: Expr
     name: str | None = None
-    params: Sequence[str] | None = None
+    params: Sequence[str] | None = attrs.field(default=None)
+
+    @params.validator
+    def _validate_params(self, attribute, value):
+        if value is not None:
+            for i, p in enumerate(value):
+                if not isinstance(p, str):
+                    raise TypeError(f"CTE params[{i}] must be str, got {type(p).__name__}")
 
     @property
     def source_table(self) -> "ITable":
         return self.table
 
     @property
-    def schema(self) -> Schema:
-        s = self.table.schema
+    def schema(self) -> Schema | None:
+        try:
+            s = self.table.schema
+        except QueryBuilderError as exc:
+            raise QueryBuilderError(f"Failed to resolve schema for CTE: {exc}") from exc
         if not self.params:
             return s
         if s is None:
             raise QueryBuilderError(f"CTE params were provided ({self.params!r}) but the source table has no schema")
-        if len(self.params) != len(s):
+        try:
+            result = s.new(dict(safezip(self.params, s.values())))
+        except ValueError as e:
             raise QueryBuilderError(
                 f"CTE params length ({len(self.params)}) does not match source schema length ({len(s)})"
-            )
-        result = type(s)(dict(zip(self.params, s.values())))
+            ) from e
         if len(result) != len(s):
             raise QueryBuilderError(f"CTE params contain duplicate column names: {self.params!r}")
         return result
