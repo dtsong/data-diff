@@ -661,8 +661,10 @@ class Cte(ExprNode, ITable):
         try:
             s = self.table.schema
         except (QueryBuilderError, ValueError) as exc:
+            # ValueError caught because some ITable.schema implementations (e.g. TableOp)
+            # still raise ValueError for validation errors pre-dating QueryBuilderError.
             name_hint = f" '{self.name}'" if self.name else ""
-            raise QueryBuilderError(f"Failed to resolve schema for CTE{name_hint}") from exc
+            raise QueryBuilderError(f"Failed to resolve schema for CTE{name_hint}: {exc}") from exc
         if not self.params:
             return s
         if s is None:
