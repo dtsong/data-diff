@@ -126,9 +126,8 @@ class Dialect(BaseDialect):
         return f"TRIM(CAST({value} AS VARCHAR))"
 
     def normalize_timestamp(self, value: str, coltype: TemporalType) -> str:
-        # TODO rounds
         if coltype.rounds:
-            s = f"date_format(cast({value} as timestamp(6)), '%Y-%m-%d %H:%i:%S.%f')"
+            s = f"date_format(cast({value} as timestamp({coltype.precision})), '%Y-%m-%d %H:%i:%S.%f')"
         else:
             s = f"date_format(cast({value} as timestamp(6)), '%Y-%m-%d %H:%i:%S.%f')"
 
