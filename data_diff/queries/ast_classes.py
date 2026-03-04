@@ -482,9 +482,11 @@ class Join(ExprNode, ITable, Root):
     @property
     def schema(self) -> Schema:
         if not self.columns:
-            raise ValueError("Join must specify columns explicitly (SELECT * not yet implemented).")
+            raise QueryBuilderError("Join must specify columns explicitly (SELECT * not yet implemented).")
         # No cross-table type validation needed: join combines columns from both tables rather than unioning rows
         s = self.source_tables[0].schema
+        if s is None:
+            raise QueryBuilderError("Cannot resolve Join schema: source table has no schema defined")
         return s.new({c.name: c.type for c in self.columns})
 
     def on(self, *exprs) -> Self:
@@ -648,7 +650,7 @@ class Cte(ExprNode, ITable):
         if value is not None:
             for i, p in enumerate(value):
                 if not isinstance(p, str):
-                    raise TypeError(f"CTE params[{i}] must be str, got {type(p).__name__}")
+                    raise QB_TypeError(f"CTE params[{i}] must be str, got {type(p).__name__}")
 
     @property
     def source_table(self) -> "ITable":
@@ -658,18 +660,20 @@ class Cte(ExprNode, ITable):
     def schema(self) -> Schema | None:
         try:
             s = self.table.schema
-        except QueryBuilderError as exc:
-            raise QueryBuilderError(f"Failed to resolve schema for CTE: {exc}") from exc
+        except (QueryBuilderError, ValueError) as exc:
+            name_hint = f" '{self.name}'" if self.name else ""
+            raise QueryBuilderError(f"Failed to resolve schema for CTE{name_hint}") from exc
         if not self.params:
             return s
         if s is None:
             raise QueryBuilderError(f"CTE params were provided ({self.params!r}) but the source table has no schema")
         try:
-            result = s.new(dict(safezip(self.params, s.values())))
+            pairs = dict(safezip(self.params, s.values()))
         except ValueError as e:
             raise QueryBuilderError(
                 f"CTE params length ({len(self.params)}) does not match source schema length ({len(s)})"
             ) from e
+        result = s.new(pairs)
         if len(result) != len(s):
             raise QueryBuilderError(f"CTE params contain duplicate column names: {self.params!r}")
         return result

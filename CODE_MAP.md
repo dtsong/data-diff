@@ -10,7 +10,7 @@ data_diff/
 ├── __main__.py          # CLI entry point (Click): `data-diff` command
 ├── version.py           # __version__ = "1.0.0"
 ├── config.py            # TOML config parsing (--conf flag)
-├── errors.py            # Custom exceptions (dbt + core)
+├── errors.py            # Custom exceptions (all dbt-integration and config-related)
 ├── schema.py            # create_schema() factory, RawColumnInfo, Schema type alias
 ├── utils.py             # CaseAwareMapping, CaseInsensitiveDict, ArithString, safezip
 ├── _compat.py           # Compatibility shims (tomllib)
@@ -120,7 +120,7 @@ Database.dialect.compile(compiler, node)
 Raw SQL string → db.query(sql)
 ```
 
-Key pattern: AST nodes are `@attrs.define(frozen=True)` — modifications return new instances via `attrs.evolve()`.
+Key pattern: Most AST nodes use `@attrs.define(frozen=True)` (some like `ExprNode`, `_ResolveColumn` are mutable). Where immutability holds, `attrs.evolve()` returns modified copies.
 
 ## Test Organization
 
@@ -157,7 +157,7 @@ Run query tests only: `uv run pytest tests/test_query.py -x -q`
 
 | Type | Location | Purpose |
 |------|----------|---------|
-| `Schema` | `schema.py` | Type alias for `CaseAwareMapping[str, ColType]` |
+| `Schema` | `schema.py` | Type alias for `CaseAwareMapping` (used as `CaseAwareMapping[str, ColType]`) |
 | `TableSegment` | `table_segment.py` | Table + key columns + range bounds |
 | `DbPath` | `abcs/database_types.py` | `tuple[str, ...]` — schema-qualified table path |
 | `Database` | `databases/base.py` | ABC for all database drivers |
