@@ -80,6 +80,12 @@ pip install 'data-diff[dbt]'
 
 See the [full documentation](https://data-diff.readthedocs.io/) for configuration details.
 
+## Windows Support
+
+The `pip install data-diff` command works natively on Windows, macOS, and Linux. Database-specific extras install the same way across all platforms.
+
+For development, the `Makefile` and `docker compose` workflow assumes a Unix-like shell. On Windows, use **WSL** (recommended) or **Git Bash** to run `make test`, `make up`, and other development commands.
+
 ## Documentation
 
 - [Full Documentation](https://data-diff.readthedocs.io/)
