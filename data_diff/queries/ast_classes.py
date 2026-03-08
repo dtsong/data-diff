@@ -515,7 +515,7 @@ class Join(ExprNode, ITable, Root):
         named_exprs = _drop_skips_dict(named_exprs)
         exprs += _named_exprs_as_aliases(named_exprs)
         resolve_names(self.source_table, exprs)
-        # TODO Ensure exprs <= self.columns ?
+        # No explicit subset check needed; resolve_names() raises KeyError for invalid column names (when schema is present)
         return attrs.evolve(self, columns=exprs)
 
 
