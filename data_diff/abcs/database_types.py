@@ -52,11 +52,19 @@ class Collation:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Collation):
             return NotImplemented
+        if self.absorbs_damage != other.absorbs_damage:
+            return False
+        if self.ordinal != other.ordinal:
+            return False
         if self.ordinal and other.ordinal:
-            # TODO: does it depend on language? what does Albanic_BIN mean in MS SQL?
+            # When both have a language, they must match (e.g. Albanian_BIN != Latin_BIN in MS SQL).
+            # When either is None, treat as equal for backward compat (language-agnostic ordinal).
+            if self.language is not None and other.language is not None:
+                return self.language == other.language
             return True
         return (
             self.language == other.language
+            # Country None-tolerance: if either side didn't report a country, don't penalize.
             and (self.country is None or other.country is None or self.country == other.country)
             and self.case_sensitive == other.case_sensitive
             and self.accent_sensitive == other.accent_sensitive
@@ -81,8 +89,23 @@ class Collation:
             return True
         if other.ordinal and not self.ordinal:
             return False
-        # TODO: try to align the languages & countries?
-        return False
+        # Deterministic total ordering: language > country > sensitivity flags.
+        # None is coerced to "" / False so that all collations are comparable.
+        self_key = (
+            self.language or "",
+            self.country or "",
+            self.case_sensitive or False,
+            self.accent_sensitive or False,
+            self.lower_first or False,
+        )
+        other_key = (
+            other.language or "",
+            other.country or "",
+            other.case_sensitive or False,
+            other.accent_sensitive or False,
+            other.lower_first or False,
+        )
+        return self_key > other_key
 
     def __ge__(self, other: object) -> bool:
         if not isinstance(other, Collation):
