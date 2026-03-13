@@ -15,23 +15,23 @@ DbTime = datetime
 N = TypeVar("N")
 
 
-@attrs.frozen(kw_only=True, eq=False, order=False, unsafe_hash=True)
+@attrs.frozen(kw_only=True, eq=False, order=False, hash=False)
 class Collation:
     """
     A pre-parsed or pre-known record about db collation, per column.
 
     The "greater" collation should be used as a target collation for textual PKs
-    on both sides of the diff — by coverting the "lesser" collation to self.
+    on both sides of the diff — by converting the "lesser" collation to self.
 
     Snowflake easily absorbs the performance losses, so it has a boost to always
     be greater than any other collation in non-Snowflake databases.
     Other databases need to negotiate which side absorbs the performance impact.
     """
 
-    # A boost for special databases that are known to absorb the performance dmaage well.
+    # A boost for special databases that are known to absorb the performance damage well.
     absorbs_damage: bool = False
 
-    # Ordinal soring by ASCII/UTF8 (True), or alphabetic as per locale/country/etc (False).
+    # Ordinal sorting by ASCII/UTF8 (True), or alphabetic as per locale/country/etc (False).
     ordinal: bool | None = None
 
     # Lowercase first (aAbBcC or abcABC). Otherwise, uppercase first (AaBbCc or ABCabc).
@@ -49,27 +49,45 @@ class Collation:
     # Purely informational, for debugging:
     _source: None | str | Collection[str] = None
 
+    def _comparison_key(self) -> tuple:
+        """Key for equality and hashing — keeps __eq__/__hash__ consistent."""
+        if self.ordinal:
+            # Ordinal sorting is by code point; sensitivity flags are irrelevant.
+            return (self.absorbs_damage, True, self.language)
+        return (
+            self.absorbs_damage,
+            self.ordinal,  # None vs False are semantically distinct
+            self.language,
+            self.country,
+            self.case_sensitive,
+            self.accent_sensitive,
+            self.lower_first,
+        )
+
+    def _ordering_key(self) -> tuple:
+        """Key for deterministic total ordering. None sorts before any real value."""
+
+        # (0,) for None sorts before (1, value) for any real value.
+        def _wrap(v: object) -> tuple:
+            return (0,) if v is None else (1, v)
+
+        return (
+            self.absorbs_damage,
+            _wrap(self.ordinal),
+            _wrap(self.language),
+            _wrap(self.country),
+            _wrap(self.case_sensitive),
+            _wrap(self.accent_sensitive),
+            _wrap(self.lower_first),
+        )
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Collation):
             return NotImplemented
-        if self.absorbs_damage != other.absorbs_damage:
-            return False
-        if self.ordinal != other.ordinal:
-            return False
-        if self.ordinal and other.ordinal:
-            # When both have a language, they must match (e.g. Albanian_BIN != Latin_BIN in MS SQL).
-            # When either is None, treat as equal for backward compat (language-agnostic ordinal).
-            if self.language is not None and other.language is not None:
-                return self.language == other.language
-            return True
-        return (
-            self.language == other.language
-            # Country None-tolerance: if either side didn't report a country, don't penalize.
-            and (self.country is None or other.country is None or self.country == other.country)
-            and self.case_sensitive == other.case_sensitive
-            and self.accent_sensitive == other.accent_sensitive
-            and self.lower_first == other.lower_first
-        )
+        return self._comparison_key() == other._comparison_key()
+
+    def __hash__(self) -> int:
+        return hash(self._comparison_key())
 
     def __ne__(self, other: object) -> bool:
         if not isinstance(other, Collation):
@@ -81,31 +99,19 @@ class Collation:
             return NotImplemented
         if self == other:
             return False
+        # absorbs_damage=True means this db absorbs conversion cost — it should be the target
+        # (i.e. "lesser"), so the non-absorbing side is "greater".
         if self.absorbs_damage and not other.absorbs_damage:
             return False
         if other.absorbs_damage and not self.absorbs_damage:
-            return True  # this one is preferred if it cannot absorb damage as its counterpart can
+            return True
         if self.ordinal and not other.ordinal:
             return True
         if other.ordinal and not self.ordinal:
             return False
-        # Deterministic total ordering: language > country > sensitivity flags.
-        # None is coerced to "" / False so that all collations are comparable.
-        self_key = (
-            self.language or "",
-            self.country or "",
-            self.case_sensitive or False,
-            self.accent_sensitive or False,
-            self.lower_first or False,
-        )
-        other_key = (
-            other.language or "",
-            other.country or "",
-            other.case_sensitive or False,
-            other.accent_sensitive or False,
-            other.lower_first or False,
-        )
-        return self_key > other_key
+        # Deterministic tuple ordering: (language, country, sensitivity flags).
+        # None sorts distinctly from "" / False via (0,) vs (1, value) wrapping.
+        return self._ordering_key() > other._ordering_key()
 
     def __ge__(self, other: object) -> bool:
         if not isinstance(other, Collation):
