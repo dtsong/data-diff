@@ -23,8 +23,8 @@ class Collation:
     The "greater" collation should be used as a target collation for textual PKs
     on both sides of the diff — by converting the "lesser" collation to self.
 
-    Snowflake easily absorbs the performance losses, so it has a boost to always
-    be greater than any other collation in non-Snowflake databases.
+    Snowflake easily absorbs the performance losses, so it is always the "lesser"
+    (preferred target) collation, ensuring the non-Snowflake side is "greater".
     Other databases need to negotiate which side absorbs the performance impact.
     """
 
@@ -65,7 +65,12 @@ class Collation:
         )
 
     def _ordering_key(self) -> tuple:
-        """Key for deterministic total ordering. None sorts before any real value."""
+        """Key for deterministic total ordering. Only use via __gt__, not as a standalone sort key.
+
+        Unlike _comparison_key, this does not collapse fields for ordinals, so two
+        ordinals that are equal by __eq__ may have different ordering keys. The __gt__
+        method guards against this by checking equality first.
+        """
 
         # (0,) for None sorts before (1, value) for any real value.
         def _wrap(v: object) -> tuple:
@@ -109,7 +114,8 @@ class Collation:
             return True
         if other.ordinal and not self.ordinal:
             return False
-        # Deterministic tuple ordering: (language, country, sensitivity flags).
+        # Deterministic tuple ordering; by this point absorbs_damage and ordinal
+        # are resolved, so language, country, and sensitivity flags decide.
         # None sorts distinctly from "" / False via (0,) vs (1, value) wrapping.
         return self._ordering_key() > other._ordering_key()
 
