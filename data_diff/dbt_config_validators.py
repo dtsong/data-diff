@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 class ManifestJsonConfig(BaseModel):
     class Metadata(BaseModel):
         dbt_version: str = Field(..., pattern=r"^\d+\.\d+\.\d+([a-zA-Z0-9]+)?$")
-        project_id: str | None
-        user_id: str | None
+        project_id: str | None = None
+        user_id: str | None = None
 
     class Nodes(BaseModel):
         class Config(BaseModel):
@@ -38,7 +38,7 @@ class ManifestJsonConfig(BaseModel):
         meta: dict[str, Any]
         config: Config
         tags: list[str]
-        test_metadata: TestMetadata | None
+        test_metadata: TestMetadata | None = None
         depends_on: DependsOn
 
     metadata: Metadata
