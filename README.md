@@ -60,7 +60,7 @@ for sign, row in diff:
 | Databricks | Stable | No unique constraint support |
 | MsSQL | Limited | No session timezone; no OFFSET support |
 | BigQuery | Limited | No session timezone; array/struct compared as JSON |
-| ClickHouse | Limited | No session timezone; complex decimal normalization |
+| ClickHouse | Limited | Complex decimal normalization |
 | Oracle | Limited | No OFFSET support; no EXPLAIN |
 | Trino | Experimental | Minimal driver extending Presto; may have SQL divergences |
 
