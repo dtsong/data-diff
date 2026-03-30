@@ -152,7 +152,9 @@ class Dialect(BaseDialect):
             return super().to_comparable(value, coltype)
 
     def set_timezone_to_utc(self) -> str:
-        raise NotImplementedError()
+        # BigQuery uses stateless REST jobs; SET @@time_zone only affects a single job,
+        # not subsequent queries. BigQuery stores timestamps in UTC internally.
+        raise NotImplementedError("BigQuery uses stateless jobs; session SET has no cross-query effect.")
 
     def parse_table_name(self, name: str) -> DbPath:
         path = parse_table_name(name)

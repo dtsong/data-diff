@@ -298,7 +298,7 @@ class Connect_SetUTC(Connect):
         try:
             db.query(db.dialect.set_timezone_to_utc())
         except NotImplementedError:
-            logging.debug(
+            logging.warning(
                 f"Database '{db}' does not allow setting timezone. We recommend making sure it's set to 'UTC'."
             )
         return db

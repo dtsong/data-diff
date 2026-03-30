@@ -96,7 +96,7 @@ class Dialect(BaseDialect):
     #     return f"'{str(t)[:19]}'"
 
     def set_timezone_to_utc(self) -> str:
-        raise NotImplementedError()
+        return "SET session_timezone = 'UTC'"
 
     def current_timestamp(self) -> str:
         return "now()"
