@@ -138,6 +138,13 @@ class Dialect(BaseDialect):
         return f"VALUES {values}"
 
     def normalize_timestamp(self, value: str, coltype: TemporalType) -> str:
+        # For timezone-aware columns (datetimeoffset), convert to UTC explicitly
+        # since MsSQL cannot set a session timezone.
+        # For timezone-naive columns (datetime/datetime2), no conversion is possible
+        # without knowing the source timezone — values are used as-is.
+        if isinstance(coltype, TimestampTZ):
+            value = f"{value} AT TIME ZONE 'UTC'"
+
         if coltype.precision > 0:
             formatted_value = (
                 f"FORMAT({value}, 'yyyy-MM-dd HH:mm:ss') + '.' + "
