@@ -152,7 +152,7 @@ class Dialect(BaseDialect):
             return super().to_comparable(value, coltype)
 
     def set_timezone_to_utc(self) -> str:
-        raise NotImplementedError()
+        return "SET @@time_zone = 'UTC'"
 
     def parse_table_name(self, name: str) -> DbPath:
         path = parse_table_name(name)
