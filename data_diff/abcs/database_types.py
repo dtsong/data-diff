@@ -106,8 +106,8 @@ class Collation:
             return NotImplemented
         if self == other:
             return False
-        # absorbs_damage=True means this db absorbs conversion cost — it should be the target
-        # (i.e. "lesser"), so the non-absorbing side is "greater".
+        # absorbs_damage=True means this db absorbs conversion cost — it is the "lesser"
+        # (the side that converts), so the non-absorbing side is "greater" (the target).
         if self.absorbs_damage and not other.absorbs_damage:
             return False
         if other.absorbs_damage and not self.absorbs_damage:
@@ -116,8 +116,8 @@ class Collation:
             return True
         if other.ordinal is True and self.ordinal is not True:
             return False
-        # By this point absorbs_damage and ordinal are equal on both sides,
-        # so the remaining fields (language, country, sensitivity flags) break the tie.
+        # By this point absorbs_damage is the same on both sides and neither side
+        # has a unilateral ordinal=True advantage, so the full tuple breaks the tie.
         # None sorts distinctly from "" / False via (0,) vs (1, value) wrapping.
         return self._ordering_key() > other._ordering_key()
 

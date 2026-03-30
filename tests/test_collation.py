@@ -30,7 +30,7 @@ class TestCollationEquality:
         assert a == b
 
     def test_ordinal_ignores_sensitivity_flags(self):
-        """Ordinal sorting is by code point; sensitivity flags are irrelevant."""
+        """Ordinal equality depends only on absorbs_damage and language; sensitivity flags are ignored."""
         a = Collation(ordinal=True, language="Latin", case_sensitive=True)
         b = Collation(ordinal=True, language="Latin", case_sensitive=False)
         assert a == b
@@ -125,7 +125,7 @@ class TestCollationHash:
 
 class TestCollationOrdering:
     def test_absorbs_damage_precedence(self):
-        """absorbs_damage=True makes a collation "lesser" (preferred target) when not otherwise equal."""
+        """absorbs_damage=True makes a collation "lesser" (the side that converts) when not otherwise equal."""
         snowflake = Collation(absorbs_damage=True, ordinal=False, language="en")
         regular = Collation(absorbs_damage=False, ordinal=False, language="de")
         assert regular > snowflake
