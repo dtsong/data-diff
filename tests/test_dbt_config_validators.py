@@ -19,7 +19,7 @@ class TestRunResultsJsonConfig(unittest.TestCase):
         for version in versions:
             with self.subTest(version=version):
                 with open(Path(RUN_RESULTS_PATH, f"run_results_{version}.json"), encoding="utf-8") as run_results:
-                    RunResultsJsonConfig.parse_obj(json.load(run_results))
+                    RunResultsJsonConfig.model_validate(json.load(run_results))
 
 
 class TestManifestJsonConfig(unittest.TestCase):
@@ -30,4 +30,4 @@ class TestManifestJsonConfig(unittest.TestCase):
         for version in versions:
             with self.subTest(version=version):
                 with open(Path(MANIFEST_PATH, f"manifest_{version}.json"), encoding="utf-8") as manifest:
-                    ManifestJsonConfig.parse_obj(json.load(manifest))
+                    ManifestJsonConfig.model_validate(json.load(manifest))

@@ -23,10 +23,7 @@ test-unit:
 ##   export DATADIFF_VERTICA_URI="vertica://vertica:Password1@localhost:5433/vertica"
 test: up
 	uv run pytest tests/ \
-		-o addopts="--timeout=300 --tb=short" \
-		--ignore=tests/test_database_types.py \
-		--ignore=tests/test_dbt_config_validators.py \
-		--ignore=tests/test_main.py
+		-o addopts="--timeout=300 --tb=short"
 
 ## Run data-diff against seed data to showcase diffing
 demo: up
