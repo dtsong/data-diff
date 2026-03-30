@@ -55,10 +55,10 @@ for sign, row in diff:
 | DuckDB | Production | — |
 | Redshift | Stable | Extends PostgreSQL driver |
 | Snowflake | Stable | No optimizer hints |
-| Presto | Stable | — |
+| Presto | Stable | No primary key detection; fixed precision defaults |
 | Vertica | Stable | — |
 | Databricks | Stable | No unique constraint support |
-| MsSQL | Limited | No session timezone; OFFSET requires ORDER BY |
+| MsSQL | Limited | No session timezone; no OFFSET support |
 | BigQuery | Limited | No session timezone; array/struct compared as JSON |
 | ClickHouse | Limited | No session timezone; complex decimal normalization |
 | Oracle | Limited | No OFFSET support; no EXPLAIN |
