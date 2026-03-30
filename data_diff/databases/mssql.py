@@ -138,13 +138,18 @@ class Dialect(BaseDialect):
         return f"VALUES {values}"
 
     def normalize_timestamp(self, value: str, coltype: TemporalType) -> str:
+        # Convert to UTC to ensure consistent cross-database comparisons.
+        # MsSQL cannot set a session timezone, so we normalize explicitly.
+        # Cast to datetimeoffset (assumes server local time), then convert to UTC.
+        utc_value = f"CAST({value} AS DATETIMEOFFSET) AT TIME ZONE 'UTC'"
+
         if coltype.precision > 0:
             formatted_value = (
-                f"FORMAT({value}, 'yyyy-MM-dd HH:mm:ss') + '.' + "
-                f"SUBSTRING(FORMAT({value}, 'fffffff'), 1, {coltype.precision})"
+                f"FORMAT({utc_value}, 'yyyy-MM-dd HH:mm:ss') + '.' + "
+                f"SUBSTRING(FORMAT({utc_value}, 'fffffff'), 1, {coltype.precision})"
             )
         else:
-            formatted_value = f"FORMAT({value}, 'yyyy-MM-dd HH:mm:ss')"
+            formatted_value = f"FORMAT({utc_value}, 'yyyy-MM-dd HH:mm:ss')"
 
         return formatted_value
 
