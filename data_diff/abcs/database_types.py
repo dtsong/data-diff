@@ -53,7 +53,7 @@ class Collation:
     def _comparison_key(self) -> tuple:
         """Key for equality and hashing — keeps __eq__/__hash__ consistent."""
         if self.ordinal is True:
-            # Ordinal sorting is by code point; only absorbs_damage and language matter.
+            # Ordinal sorting is by code point; the key collapses to absorbs_damage, the ordinal flag, and language.
             return (self.absorbs_damage, True, self.language)
         return (
             self.absorbs_damage,
