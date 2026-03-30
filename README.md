@@ -48,21 +48,27 @@ for sign, row in diff:
 
 ## Supported Databases
 
-| Database     | Status |
-|-------------|--------|
-| PostgreSQL  | Supported |
-| MySQL       | Supported |
-| Snowflake   | Supported |
-| BigQuery    | Supported |
-| Databricks  | Supported |
-| Redshift    | Supported |
-| DuckDB      | Supported |
-| Presto      | Supported |
-| Trino       | Supported |
-| Oracle      | Supported |
-| MS SQL      | Supported |
-| ClickHouse  | Supported |
-| Vertica     | Supported |
+| Database | Tier | Known Limitations |
+|----------|------|-------------------|
+| PostgreSQL | Production | — |
+| MySQL | Production | — |
+| DuckDB | Production | — |
+| Redshift | Stable | Extends PostgreSQL driver |
+| Snowflake | Stable | No optimizer hints |
+| Presto | Stable | No primary key detection; fixed precision defaults |
+| Vertica | Stable | — |
+| Databricks | Stable | No unique constraint support |
+| MsSQL | Limited | No session timezone; no OFFSET support |
+| BigQuery | Limited | No session timezone; array/struct compared as JSON |
+| ClickHouse | Limited | Complex decimal normalization |
+| Oracle | Limited | No OFFSET support; no EXPLAIN |
+| Trino | Experimental | Minimal driver extending Presto; may have SQL divergences |
+
+**Tier definitions:**
+- **Production** — All methods implemented, dedicated tests, CI coverage
+- **Stable** — Core functionality works, minor limitations noted above
+- **Limited** — Usable but missing some features; cross-database comparisons may have edge cases
+- **Experimental** — Minimal implementation, use with caution
 
 ## dbt Integration
 
